@@ -1,0 +1,176 @@
+# uv入門：Python環境を一つの道具で揃える
+
+YAMASHI TECH AI Editorial Desk | Deep Dive | DevTools / Python
+
+[掲載ページ](https://yamashi-tech.com/articles/tool-uv-python-projects) · [原稿データ](../articles/tool-uv-python-projects.json)
+
+公開: 2026-09-17 / 更新: 2026-10-22 / 確認: 2026-10-22
+
+Python本体、仮想環境、依存関係、lock、tool実行をuvへまとめる。隔離環境で基本操作を試し、古いlockに対するfrozenとlockedの違いも再検証した。
+
+## uvが減らすのは、速さより手順の分岐
+
+Python projectでは、Python本体をpyenv、仮想環境をvenv、依存導入をpip、固定をpip-tools、CLI toolをpipx、配布をbuildやtwineで扱う構成がある。どれも役割は明確だが、新しいmemberは『このrepoではどれを、どの順で使うか』を覚えなければならない。
+
+Astralのuvは、Python version管理、virtual environment、dependency resolution、lockfile、script実行、tool実行、package buildとpublishを一つのCLIへ寄せる。Rust製による速さが注目されるが、チームにとって大きいのは、`uv sync`と`uv run`を共通の入口にできることだ。既存のpip-compatible interfaceもあり、新規導入と段階移行の両方を狙っている。
+
+## Poetryやpipを、全部すぐ置き換える道具ではない
+
+uvのproject workflowは`pyproject.toml`と`uv.lock`を中心に動く。Poetryと重なる部分は多いが、既存projectのbuild backendや公開方法まで自動的に同じ意味へ変換するわけではない。pip-compatible commandは、requirements中心の既存運用を維持したままresolverやinstallを置き換える場合に使える。
+
+採用判断では機能数より、どのsource of truthを選ぶかを決める。新規applicationならpyprojectとuv.lockへ揃えやすい。既にPoetry lock、private index、editable package、platform markerを運用しているなら、同じdependency graphとbuild artifactが再現できるかを先に試す。
+
+代表的な構成との役割比較
+
+| 構成 | 主なsource of truth | 向く状況 | 移行時の注意 |
+| --- | --- | --- | --- |
+| uv project | pyproject.toml + uv.lock | 新規開発、複数platform、統一CLI | build backendとindex設定を確認 |
+| pip + requirements | requirements*.txt | 単純な既存運用、広い互換性 | Python本体やlock生成は別管理 |
+| Poetry | pyproject.toml + poetry.lock | 既存Poetry workflow | lockの意味と公開設定を一括変換しない |
+| pipx / uvx | toolごとの隔離環境 | CLIをproject依存へ入れず試す | 一時実行と永続installを分ける |
+
+## 隔離環境で、initからfrozen syncまで確認した
+
+2026年9月17日、macOS x86_64の一時directoryへ公式installerでuv 0.12.15を配置し、repositoryやglobal Python設定を変更せず検証した。systemのCPython 3.13.2を使ってapplication projectを作り、httpx 0.28.1を追加した。uvは8 packageをresolveし、`.venv`と`uv.lock`を作成した。
+
+続けて`uv run`でhttpxをimportし、`uv lock --check`と`uv sync --frozen`が成功することを確認した。これは性能benchmarkではない。download状況やcacheで時間は変わる。ここで確認したかったのは、公式の基本commandが一つの隔離projectで、初期化、依存追加、実行、lock検証、再現までつながることだ。
+
+| 確認項目 | 環境・結果 | 記事での扱い |
+| --- | --- | --- |
+| uv | 0.12.15 | このversionでcommandを実行 |
+| Python | CPython 3.13.2 | 既存system interpreterを利用 |
+| dependency | httpx 0.28.1を含む8 package | uv.lockへ解決結果を記録 |
+| 再現確認 | lock --check / sync --frozen 成功 | CI向け手順の動作を確認 |
+
+## 新規projectは、四つのcommandで流れを覚える
+
+`uv init`はproject metadataとsample sourceを作り、`uv add`はpyprojectへdependencyを追加してlockと環境を更新する。`uv run`はproject environmentでcommandを実行し、必要なら事前に同期する。`uv sync`はlockに沿ってenvironmentを明示的に揃える。activateは可能だが、日常commandを`uv run`へ寄せればshell状態への依存を減らせる。
+
+Python versionは`uv python pin`で`.python-version`へ残せる。ただし、applicationが本当に3.13以上を要求するのか、開発者の好みで固定しただけかを分ける。libraryならsupport rangeを`requires-python`へ書き、CIで複数versionを検証するほうが適切な場合がある。
+
+最小projectを作る
+
+```shell
+uv init --app hello-uv --python 3.12
+cd hello-uv
+uv add httpx
+uv add --dev pytest ruff
+cat > test_smoke.py <<'PY'
+import httpx
+
+
+def test_httpx_version():
+    assert httpx.__version__
+PY
+uv run --locked python -c 'import httpx; print(httpx.__version__)'
+uv run --locked ruff check .
+uv run --locked pytest
+```
+
+## uv.lockとpyproject.tomlの役割を分ける
+
+pyproject.tomlは、人が管理するdirect dependencyとversion条件を表す。uv.lockは、transitive dependency、artifact、platform条件を含む解決結果を再現するためのmachine-managed fileだ。applicationでは通常lockfileをcommitする。libraryでも開発・test環境の再現には有用だが、利用者へ同じtransitive versionを強制するものではない。
+
+`uv sync --locked`はpyprojectとlockの整合性を確認し、lockの更新が必要なら失敗する。`uv lock --check`も更新が必要かを検査する。一方、`uv sync --frozen`は整合性を確認せず、既存lockを正として同期する。pyprojectへ追加したdependencyがlockにない場合、そのdependencyを入れないまま成功することがある。通常のCIで宣言とlockの食い違いを検出したいなら、`--locked`を使う。
+
+dependency更新はapplication変更と別diffにし、対象を絞るなら`uv lock --upgrade-package httpx`のように指定する。Docker buildの途中など、意図的にproject metadataをまだ揃えていない段階で`--frozen`を使う設計はあり得るが、最終段階の整合性検査を別に用意する必要がある。
+
+clone後とCIの基本
+
+```shell
+uv lock --check
+uv sync --locked
+uv run --locked pytest
+uv run --locked ruff check .
+
+# 対象を絞ったdependency更新
+uv lock --upgrade-package httpx
+uv run --locked pytest
+```
+
+## 再検証：frozenの成功だけでは、宣言した依存が揃った証拠にならない
+
+2026年10月22日、macOS x86_64、CPython 3.12.2、uv 0.12.15で、不整合を意図的に作る検証を行った。まず依存のないprojectでlockを生成し、次に一時directory内で作った小さなwheelをpyprojectだけへ追加した。外部indexへ接続せず、各commandを`--offline --no-config`付きで実行した。
+
+古いlockに対する`uv sync --locked`と`uv lock --check`はexit code 1、`uv sync --frozen`はexit code 0だった。frozen後の環境には追加したmoduleが存在せず、lockのhashも変わらなかった。その後`uv lock`で更新してから`uv sync --locked`を実行するとexit code 0となり、moduleをimportできた。これはlockと宣言の整合性を測る検証であり、resolverの性能や全platformの互換性を示すものではない。
+
+再現用Python scriptは出典欄から取得できる。uvは別途用意し、scriptへ実行fileを指定する。scriptは一時directoryだけへproject、wheel、cache、仮想環境を作り、終了時に削除する。uvやPythonのglobal設定は変更しない。
+
+pyprojectだけに依存を追加した状態での観測（uv 0.12.15）
+
+| 操作 | exit code | 観測 |
+| --- | --- | --- |
+| uv sync --locked | 1 | lockの更新が必要として拒否 |
+| uv lock --check | 1 | 古いlockを検出 |
+| uv sync --frozen | 0 | 新しい依存は未導入、lockも変更なし |
+| uv lock → uv sync --locked | 0 → 0 | lock更新後は依存をimport可能 |
+
+出典欄のuv-locking.pyを保存して実行する
+
+```shell
+python3 uv-locking.py --uv /path/to/uv
+```
+
+## CIでは、uv自体とdependency cacheを分けて考える
+
+CIは、uvを再現可能な方法で導入し、Pythonを揃え、`uv sync --locked`を行い、`uv run --locked`で検証する。公式GitHub Actionを使う場合もversionを固定し、Action自体の参照方法は組織のsupply-chain policyに合わせる。cacheは高速化であり、再現性の根拠ではない。cacheを消してもlockから構築できる状態を保つ。
+
+private indexではcredentialをpyprojectやlockへ書かない。CI secretから必要なprocessへだけ渡し、logへURLやtokenを出さない。native extensionがあるprojectは、Python packageだけでなくOS library、compiler、architectureも再現条件へ含める。uvがinstallに成功してもapplicationが動くことは保証しないため、testとbuildまでを完了条件にする。
+
+次の例はpytestとruffを定義済みのproject向けである。packageを配布するprojectでは、build backendを設定したうえで`uv build`も確認する。単純なapplication projectへ配布用のbuildを無条件に要求するものではない。
+
+CI job内の実行部分
+
+```shell
+uv python install 3.12
+uv lock --check
+uv sync --locked --all-groups
+uv run --locked ruff check .
+uv run --locked pytest
+# 配布packageではbuild backendを設定した後に uv build
+```
+
+## requirementsからは、変換と採用を分ける
+
+公式guideには`uv add -r requirements.txt`でdependencyをprojectへ取り込む方法がある。だが、変換commandが成功しても、environment marker、private index、editable install、constraints、hash policyが同じ意味で表現されたとは限らない。生成されたpyprojectとlockを読み、旧環境とtest結果を比較する。
+
+安全な移行は、作業branchでuvを追加し、既存testを`uv run`経由で通し、次にCIを切り替え、最後に旧scriptを削除する。Dockerfile、release、publishまで同じPRへ入れると、失敗原因が増える。まずdevelopmentとCIの再現から始める。
+
+既存requirementsをprojectへ取り込む例
+
+```shell
+uv init --bare
+uv add -r requirements.txt
+uv add --dev -r requirements-dev.txt
+uv lock
+uv run pytest
+git diff -- pyproject.toml uv.lock
+```
+
+## 採用条件は、clean checkoutで決める
+
+uvを入れたことではなく、clean checkoutから指定Python、dependency、test、buildを再現できたことを採用条件にする。既存memberのcacheが効いたmachineだけで成功しても不十分だ。macOSとLinux、必要ならWindowsでlockを検証し、native dependencyを含むartifactも確認する。
+
+uvはPython ecosystemの複雑さを隠してくれるが、消してはくれない。build backend、wheel、index、platform markerを理解したうえで、日常操作を狭いinterfaceへまとめるtoolだ。小さなsampleで再現性を確認できたら、一つのserviceから段階的に広げるのがよい。
+
+- pyprojectを人の宣言、uv.lockを解決結果としてreviewする
+- CIではlock更新を許さず、dependency更新を別taskにする
+- private indexとnative dependencyを移行前に洗い出す
+- clean checkoutでtestとbuildが通るまで旧workflowを残す
+
+## 訂正：2026年10月22日
+
+初版の『uv sync --frozenはpyprojectとの不整合があれば失敗する』という説明を訂正した。整合性を検査する`--locked`と、検査せずlockを使う`--frozen`を区別し、CI例を更新した。pytestの例にはsmoke testを追加した。初回の正常系の確認だけでは不整合時の動作まで裏付けられなかったため、今回は失敗例を実行して記録した。
+
+## 制約と未検証範囲
+
+- 初回の基本操作は2026年9月17日にuv 0.12.15で確認した。2026年10月22日は同じuv 0.12.15、macOS x86_64、CPython 3.12.2で、外部packageを取得しない使い捨てfixtureを使い、古いlockに対するfrozen、locked、lock --checkを再検証した。private index、monorepo、package公開、production CI移行は検証していない。
+
+## 確認したもの
+
+- [uv — official documentation](https://docs.astral.sh/uv/)
+- [Working on projects — uv](https://docs.astral.sh/uv/guides/projects/)
+- [uv lockfile](https://docs.astral.sh/uv/concepts/projects/layout/#the-lockfile)
+- [Installing uv](https://docs.astral.sh/uv/getting-started/installation/)
+- [uv — Locking and syncing: lockedとfrozenの仕様（2026-10-22確認）](https://docs.astral.sh/uv/concepts/projects/sync/)
+- [YAMASHI TECH — uvのlock不整合を再現するoffline検証script](https://yamashi-tech.com/verification/uv-locking.py)

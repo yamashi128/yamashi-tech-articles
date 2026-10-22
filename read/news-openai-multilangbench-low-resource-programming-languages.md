@@ -1,0 +1,101 @@
+# OpenAIがMultiLangBenchを公開：低リソース言語の移行を、モデルの自己申告だけで終わらせないために
+
+YAMASHI TECH AI Editorial Desk | News | AI / ML / DevTools / Software Engineering / Industry
+
+[掲載ページ](https://yamashi-tech.com/articles/news-openai-multilangbench-low-resource-programming-languages) · [原稿データ](../articles/news-openai-multilangbench-low-resource-programming-languages.json)
+
+公開: 2026-10-20 / 更新: 2026-10-20 / 確認: 2026-10-20
+
+OpenAIは、COBOLやFortranを含む20言語でSQLite互換engineの実装を測るMultiLangBenchと、COBOL移行評価の結果を公開した。数字はOpenAI自身の評価条件に限られるため、既存systemの安全な移行を意味するものではなく、teamは自分たちのbusiness ruleとtestで別途確かめる必要がある。
+
+## 要点：公開されたのは低リソース言語向けの能力保証ではなく、評価方法とOpenAIの測定結果
+
+OpenAIは2026年10月19日、COBOL、Fortran、OCaml、Visual Basicを含む低リソース言語でのcoding能力について、MultiLangBenchとCOBOL migration evaluationの結果を公開した。MultiLangBenchのsetupとtest suiteはGitHub repositoryとして公開され、SQLite互換engineを20言語で実装させる評価である。これは、PythonやJavaScriptに比べ学習に使えるcode・documentationが少ない言語でも、何を測ったかを外から読める形にした点が今回の変化だ。
+
+一方、発表に出る87.4%、86.6%、97.9%は『低リソース言語の案件が同じ確率で成功する』という数字ではない。前者はMultiLangBenchでの20言語平均test pass rate、後者はOpenAIが用意したCOBOL移行評価でのaccuracyであり、model、reasoning effort、task、採点条件をそろえた同社内の比較である。記事ではこれらをNumeric factとして扱い、独立benchmarkやproduction結果とは呼ばない。
+
+実務での読み方は、モデルを採用するか即断することではなく、既存systemの挙動をどこまでtestとして固定できているかを見直す材料にすることだ。特にCOBOLのように業務規則がcodeへ埋め込まれたsystemでは、compileやunit testの通過だけで移行の正しさを判定できない。以下の導入手順は、公開資料から編集部が導くInferenceとRecommendationである。
+
+- Fact：OpenAIはMultiLangBenchのevaluation setupとtest suiteをpublic repositoryで公開した
+- Numeric fact：OpenAIはGPT-6 Astraの20言語平均pass rateを87.4%、GPT-5.6 Solを26.8%と報告した
+- Fact：COBOL migration evaluationは、observable outputのbyte-for-byte parityを成功条件にする、とOpenAIは説明する
+- Recommendation：benchmarkの平均値ではなく、自組織のcritical business ruleを先にtest化して比較する
+
+## 何が起きたか：SQLite互換engineとCOBOL移行を別の評価として公開
+
+発表主体はOpenAI、発表日は2026年10月19日である。同社は、低リソース言語で新しいsoftwareを組み立てる能力を見るMultiLangBenchと、既存COBOL programを別言語へ移して振る舞いを保つ能力を見るCOBOL migration evaluationを説明した。前者は新規実装、後者は既存挙動の保存という、似ているようで異なる仕事を分けている。
+
+MultiLangBenchでは、candidate programへinitial database fileとSQL queryを渡し、変更後のdatabaseをSQLite 3.40.1で検証する。公開repositoryによると、SQLite TCL Testsの約5.1万testのうち約2.4万をこの形式へ変換し、通常のevaluationでは先頭が00、01、02の272 testを使う。testが一致しない、crashする、60秒でtimeoutする、指定外の言語を混ぜる場合はfailとする。
+
+COBOL migration evaluationでは、COBOLをC++、Java、Kotlin、Python、Rustへ移し、hidden test上のobservable outputがbyte-for-byteで一致することを成功とする、と発表は述べる。fixed-point arithmeticで余った小数をどう扱うかのように、動作するrewriteと同じ結果を返すrewriteは別物になり得る。公開資料はこの評価の集計値を示すが、すべてのcaseやproduction依存関係を公開しているわけではない。
+
+## 数値の読み方：比較できる条件と、比較してはいけない範囲
+
+OpenAIの発表では、maximum reasoning effortのMultiLangBenchでGPT-6 Astraは20言語平均87.4%、GPT-5.6 Solは26.8%とされる。例としてCOBOLは10.9%から72.1%、Fortranは21.4%から83.5%、OCamlは25.6%から85.8%、Visual Basicは27.5%から89.4%へ上がったと報告する。GPT-6 Lunaは平均40.3%で、同社のestimated API costはsample当たり0.77ドル、GPT-5.6 Solの3.48ドルより約78%低いという。
+
+COBOL migration evaluationについては、OpenAIはlow reasoning effortでGPT-6.1 Solが86.6%、GPT-5.6 Solが5.4%で、前者のcostは後者の61%だと報告する。higher reasoning effortではGPT-6.1 Solが97.9%に達したという。この数値は同じ評価設計のモデル間比較には使えるが、task量、reasoning setting、API pricingの時点、retry、human review、integration testを含むmigration projectの見積もりにはそのまま使えない。
+
+またMultiLangBenchのscoreはrepository上で`api_cost`と`test_pass_rate`の組として定義されている。平均pass rateが高くても、ある一つのlanguage、ある一つのSQL feature、または長いsessionの失敗が消えるわけではない。OpenAI自身もCOBOLを20言語中もっとも難しいものとしており、平均値が個別案件のriskを覆い隠す点に注意が要る。ここまでの後半は公開仕様からのInferenceである。
+
+OpenAIが公開した評価と、記事で区別する主張の強さ（2026年10月20日確認）
+
+| 項目 | 一次情報で確認できること | そのままは言えないこと |
+| --- | --- | --- |
+| MultiLangBench | SQLite 3.40.1互換engineを20言語で作り、databaseの検証結果で採点する公開evaluation | 任意のrepository作業、保守、security review、長期運用を代表する |
+| GPT-6 Astra | OpenAI報告ではmaximum reasoning effortの平均test pass rateは87.4% | すべての低リソース言語projectで87.4%成功する |
+| GPT-6 Lunaのcost | OpenAI報告ではsample当たりestimated API costは0.77ドル、比較対象は3.48ドル | 個別teamのtoken量、retry、tool、human review込みの総費用が78%下がる |
+| COBOL migration | hidden testのbyte-for-byte parityを成功条件にしたOpenAIの評価で、GPT-6.1 Solの結果を報告 | production COBOLの自動移行安全性、expert reviewの要否 |
+
+## 以前との違い：『書けるか』と『既存の業務結果を保てるか』を同じ成功にしない
+
+coding modelの比較は、short functionの生成や公開benchmarkのpass rateだけに寄りやすい。今回の発表は、SQLite-compatible engineを組み立てる仕事と、COBOLの既存programを別言語へ移す仕事を別evaluationにした。前者ではstate、error handling、feature追加を含む実装を、後者では既存のobservable behaviorを失わないことを狙っている。
+
+この区別は現場でも重要だ。たとえば金融transactionのfixed-point calculationは、source languageの暗黙のtruncationとtarget languageのroundingが異なれば、exceptionなしで異なる金額を返すかもしれない。OpenAIはその例をCOBOL migrationの説明に使う。testがgreenであることと、business rule・帳票・downstream systemまで含めた意味が保たれたことは同義ではない。
+
+そのため、モデルが出したtarget codeをcompileできたことや、公開benchmarkで高得点だったことを、移行完了の根拠にはできない。既存のacceptance testが少ないteamほど、移行前にreference input、expected output、例外、rounding、batch境界、外部interfaceを整理する必要がある。これは公開資料を実務判断へ翻訳した編集部のRecommendationである。
+
+## 誰に影響するか：COBOL・Fortranなどを保守し、移行の検証責任を持つteam
+
+直接の対象は、COBOL、Fortran、OCaml、Visual Basicなどを保守し、documentation不足や担当者の交代でcodeそのものが仕様の一部になっているteamだ。OpenAIは、こうした言語がcritical infrastructureやessential serviceを支えると説明する。ただし、この説明は業界全体の導入状況を独立に検証した統計ではなく、今回の評価が扱う動機として読むべきである。
+
+移行を検討するteamにとっては、公開されたMultiLangBenchを『自社のlanguageが何位か』の表としてではなく、evaluationの設計例として読む価値がある。initial state、task input、出力artifact、reference implementationによるvalidationという分解は、legacy systemのmigration testにも応用できる。けれどもSQLite databaseという共通interfaceがあること自体が評価を可能にしており、同じ枠組みをそのまま業務systemへ持ち込めるとは限らない。
+
+反対に、既存挙動がtestやsample dataとして取り出せないsystem、規制上human sign-offが必要な変更、performance・license・vendor supportが重要な案件では、モデル更新のニュースだけを理由にmigrationを開始しない方がよい。modelは調査やtest caseの下書きに使えても、release decisionとrollback設計はteam側の責任に残る。後半は編集部のRecommendationである。
+
+## 今できること：小さな振る舞いを固定して、モデル比較を自分の条件へ戻す
+
+まずは変更せずに、既存systemの代表的なinputと期待するobservable outputを集める。金額、date、encoding、null・missing record、error code、file format、外部systemとのinterfaceのうち、違えば業務影響が出るものを優先する。これはOpenAIのbenchmarkを再現する作業ではなく、自組織のmigration acceptance criteriaを明文化する作業である。
+
+次に、isolatedなsandboxまたは使い捨てbranchで、同じtaskを複数回実行し、compile、unit、integration、golden output、performance、security reviewを分けて記録する。modelのprompt、version、reasoning setting、tool permission、retry回数、human modificationを残さなければ、後からどの条件で差が出たか判断できない。編集部はAPI keyや課金を伴うmodel callを使ったlive testを行っていない。
+
+最後に、passしたcaseだけでrolloutしない。expected outputを変える例、timeout、dependency差、手作業の修正量、rollbackの可否も同じ表へ残す。公開repositoryはtest setupの参考になるが、production systemの安全性を代行するものではない。これは公開evaluationを踏まえた編集部のRecommendationである。
+
+- Recommendation：business ruleを含むgolden input／outputを先にversion管理し、生成codeより先にreviewする
+- Recommendation：model、reasoning effort、prompt、tool権限、sample数を固定して比較し、平均値だけで判断しない
+- Recommendation：human approval、staged rollout、rollback、監査ログを残し、生成結果を直接productionへ出さない
+
+## まだ分からないこと：独立再現、現場のcost、security、長期の保守性
+
+MultiLangBench repositoryにはtest形式、SQLite 3.40.1、no-internet条件、timeout、採点手順が書かれている。しかし、発表にあるmodel別の実行log、すべてのsample、統計的なばらつき、model tool configuration、COBOL migration evaluationの全artifactまでは公開資料で確認できない。従って、OpenAI報告を第三者がどこまで同じ条件で再現できるかは未確認である。
+
+API costも、benchmarkのsample当たりestimated costと、teamが支払うproject costを混同できない。実案件ではcontextの長さ、tool call、retry、build時間、reviewer、test environment、incident対応が乗る。モデルがより安いというproviderの測定結果は候補選びのinputにはなるが、予算承認の最終根拠には個別のpilotが必要だ。
+
+生成codeのsecurity、license、supply chain、data residency、retention、提供地域、SLA、vendor support、migration後の保守性も今回のbenchmarkからは判定できない。低リソース言語で数字が上がったことを『legacy modernizationが自動化された』とは扱わない。最後の二文は編集部のInferenceである。
+
+## 次に確認する条件：外部再現、benchmark更新、対象systemのacceptance testがそろったとき
+
+次に確認するのは、OpenAIまたは第三者がMultiLangBenchの実行手順、model別result、COBOL migration evaluationのdataset・artifact・統計を更新したときである。repositoryのtest suite、SQLite version、採点subset、timeout、model pricing、reasoning effortが変われば、数値を過去記事のまま比較できない。
+
+teamが導入を判断する条件は、benchmarkの新記録ではなく、自分たちのcritical flowでexpected output、failure handling、review、rollbackを確認できたことに置きたい。現時点では、MultiLangBenchは低リソース言語でのmodel評価を具体化する公開資産として有用だが、既存systemの移行を自動で安全にする保証ではない。この結論の後半は編集部のInferenceとRecommendationである。
+
+## 制約と未検証範囲
+
+- 本稿はOpenAIが2026年10月19日に公開した発表と、同社が公開したMultiLangBench repositoryを照合したものである。API key、課金を伴うmodel call、COBOL migration、SQLite implementation、benchmarkの再実行、production repositoryや顧客dataを用いる検証は行っていない。
+- GPT-6 Astra、GPT-6 Luna、GPT-6.1 SolとGPT-5.6 Solの数値、estimated API cost、20言語平均、hidden testでのCOBOL migration accuracyはOpenAI自身のevaluation結果であり、独立再現、実運用でのquality、latency、総費用、security、data handlingを示すものではない。
+- MultiLangBenchはSQLite 3.40.1互換engineを作る課題であり、COBOL migration評価は公開資料から詳細datasetや全prompt、sample数、confidence intervalを確認できない。既存applicationのbusiness rule、integration、batch schedule、performance、regulatory requirementを含む移行全体へ結果を一般化できない。
+- 公開repositoryのtest suiteと採点手順は確認したが、本稿では公開されていないCOBOL migration evaluationのartifactや、各modelの実行環境を検証していない。モデルversion、reasoning effort、pricing、提供地域、rate limit、benchmark repositoryは更新され得る。
+
+## 確認したもの
+
+- [OpenAI — Advancing coding in low-resource programming languages (2026-10-19)](https://openai.com/index/low-resource-programming-languages/)
+- [OpenAI GitHub — MultiLangBench (checked 2026-10-20)](https://github.com/openai/MultiLangBench)

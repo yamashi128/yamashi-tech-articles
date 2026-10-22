@@ -1,0 +1,192 @@
+{
+  "schemaVersion": 1,
+  "repository": "yamashi128/yamashi-tech-articles",
+  "articles": [
+    {
+      "slug": "paper-react-reasoning-and-acting",
+      "path": "articles/paper-react-reasoning-and-acting.json",
+      "sha256": "d9ea01a6c25dc7e2f679f5bb25802a3b7ae735d24a452c02b9e34cd52c48f40d"
+    },
+    {
+      "slug": "paper-toolformer-self-taught-tool-use",
+      "path": "articles/paper-toolformer-self-taught-tool-use.json",
+      "sha256": "366fa7572957735d6952eec865e0def945042d9ff53e0f78feaafe9c4652daaa"
+    },
+    {
+      "slug": "paper-reflexion-verbal-feedback",
+      "path": "articles/paper-reflexion-verbal-feedback.json",
+      "sha256": "e16522c923865730aa5bfb7e37e0da15572ed8393109e652b80624e1baa3226e"
+    },
+    {
+      "slug": "paper-generative-agents-memory",
+      "path": "articles/paper-generative-agents-memory.json",
+      "sha256": "643f4e2db0e0bd1217757af89a5e03645e40c631a120c7e4c030563a1999bef7"
+    },
+    {
+      "slug": "paper-swe-agent-interface-design",
+      "path": "articles/paper-swe-agent-interface-design.json",
+      "sha256": "ed2e5ae5ae63e4240656e173b3dc2e0772b9c9cb35cb933f3865b75de999823d"
+    },
+    {
+      "slug": "tool-uv-python-projects",
+      "path": "articles/tool-uv-python-projects.json",
+      "sha256": "63f260a24f9210a59fafbfb2199d75bfcff0061fcc96928ce6eead71a1eb6d1e"
+    },
+    {
+      "slug": "tool-mise-dev-environments",
+      "path": "articles/tool-mise-dev-environments.json",
+      "sha256": "3cc5e45fd028a19327a84f5b757dbf0ff0bb50cd99955fa00e66165461ef8533"
+    },
+    {
+      "slug": "tool-biome-js-quality",
+      "path": "articles/tool-biome-js-quality.json",
+      "sha256": "f7a480e700829fa0139c3a0fc51668dafedf7355a854ee3c0a30be70093fbab9"
+    },
+    {
+      "slug": "tool-zizmor-github-actions-security",
+      "path": "articles/tool-zizmor-github-actions-security.json",
+      "sha256": "58de0eaa84630f162622830fe31f961d6f733733784379b3de429d10835aa847"
+    },
+    {
+      "slug": "tool-jujutsu-version-control",
+      "path": "articles/tool-jujutsu-version-control.json",
+      "sha256": "99f76d401b085576c57758cce35fcd9670fcbbb4de755f1f5f34e39923dd9bc5"
+    },
+    {
+      "slug": "astra-codex-practical-guide",
+      "path": "articles/astra-codex-practical-guide.json",
+      "sha256": "feabfbd7024ec1bbc55a8e5d07d431845bfdfe644d3bdfa8a0eafb01d5c0d7fe"
+    },
+    {
+      "slug": "news-openai-agents-api-public-beta",
+      "path": "articles/news-openai-agents-api-public-beta.json",
+      "sha256": "e80f6db81c61fedb731de109f7d541d77dc80d301c8a5f3a9a9b8c585c212357"
+    },
+    {
+      "slug": "news-anthropic-life-sciences-verification-program",
+      "path": "articles/news-anthropic-life-sciences-verification-program.json",
+      "sha256": "81af179de0c2405a9edacdb429155f0610ebc1ab8966278aa0a61c8808aedf03"
+    },
+    {
+      "slug": "news-typesafe-jev-system-one-models",
+      "path": "articles/news-typesafe-jev-system-one-models.json",
+      "sha256": "f49dfc46e5a241b8ab4dc8566f971bd9db95b75a088f87108629d03c6febcf0c"
+    },
+    {
+      "slug": "news-google-agentic-presubmit-security-mantis",
+      "path": "articles/news-google-agentic-presubmit-security-mantis.json",
+      "sha256": "29977ca541bb6e150549cc3d0779801a2c7dcd88db49e2d9516afcc68dbcb1c8"
+    },
+    {
+      "slug": "news-anthropic-accenture-embedded-evaluation",
+      "path": "articles/news-anthropic-accenture-embedded-evaluation.json",
+      "sha256": "fda8b061f69bb03408f97e3e527a926b7a4d1afcb6001cc3370db073fa56b252"
+    },
+    {
+      "slug": "news-openai-gpt-live-1-voice-agent-delegation",
+      "path": "articles/news-openai-gpt-live-1-voice-agent-delegation.json",
+      "sha256": "c79d678f8989258c3729229ee5b23650cbe6bfe43c76579898e6d429eab018ae"
+    },
+    {
+      "slug": "news-aws-tolap-agent-tool-object-access-control",
+      "path": "articles/news-aws-tolap-agent-tool-object-access-control.json",
+      "sha256": "2daa7a10329e297ec2ef09f240257c43365c17cc14254cfbb89e36d89ae79280"
+    },
+    {
+      "slug": "news-openai-gpt-6-sol-luna-cost-caching",
+      "path": "articles/news-openai-gpt-6-sol-luna-cost-caching.json",
+      "sha256": "375e8c32c0bb7545b40e9b7b2ceac0989311f99cdc79b26cb5376e846e43461a"
+    },
+    {
+      "slug": "news-github-security-lab-agentic-fuzzing-taskflow",
+      "path": "articles/news-github-security-lab-agentic-fuzzing-taskflow.json",
+      "sha256": "458845cc214eaeac91890b545a227553e1f29112901dec275d8c1f9525031847"
+    },
+    {
+      "slug": "news-google-cloud-api-gateway-remote-mcp",
+      "path": "articles/news-google-cloud-api-gateway-remote-mcp.json",
+      "sha256": "76ea6d0fcf7ae7f70673d905a9417e871f4754e1e37fa55971198c004b7e3996"
+    },
+    {
+      "slug": "news-anthropic-claude-art-autonomous-genome-mining",
+      "path": "articles/news-anthropic-claude-art-autonomous-genome-mining.json",
+      "sha256": "9f8e24b24a05d9f80e7da01e5bb9559fadca2f70f64f47442cdf68a2e4b1e3c2"
+    },
+    {
+      "slug": "news-anthropic-unintended-agent-actions",
+      "path": "articles/news-anthropic-unintended-agent-actions.json",
+      "sha256": "84f2ebc15214a07fe9b5a57083be1bd5f3e1637cc6a44266e4e96a859d7b4d1b"
+    },
+    {
+      "slug": "news-openai-gpt-4-api-deprecation-2027",
+      "path": "articles/news-openai-gpt-4-api-deprecation-2027.json",
+      "sha256": "67740d027c6b42095c94986324a0c54edea9d0873ffa37c152ef04c60d057bd6"
+    },
+    {
+      "slug": "news-github-actions-workflow-lockfiles-public-preview",
+      "path": "articles/news-github-actions-workflow-lockfiles-public-preview.json",
+      "sha256": "98379f297b8cd3a476c1778202505fbce4bda9efaeaa10e6179621f7846284b6"
+    },
+    {
+      "slug": "news-github-ai-scan-pull-requests-general-availability",
+      "path": "articles/news-github-ai-scan-pull-requests-general-availability.json",
+      "sha256": "0c2f4592519d66e6c27d04a4c6e995941e087c406310293d51b0d6258076e946"
+    },
+    {
+      "slug": "paper-swe-bench-science-coding-agents",
+      "path": "articles/paper-swe-bench-science-coding-agents.json",
+      "sha256": "6434d3934833da7ad437990818c830bc2793b5261bfa2886ab8d5821338ed32c"
+    },
+    {
+      "slug": "tool-git-worktree-parallel-branches",
+      "path": "articles/tool-git-worktree-parallel-branches.json",
+      "sha256": "30bac770deb1af38e35bc8ba3fcf09dff171aa6323c24e840a51fc2dafc0ebad"
+    },
+    {
+      "slug": "tool-node-abortsignal-cancellation",
+      "path": "articles/tool-node-abortsignal-cancellation.json",
+      "sha256": "5d3d8ec281233575b473254509cc1bda4e03fad84ad9986bd42bf86a0f5569c3"
+    },
+    {
+      "slug": "news-openai-multilangbench-low-resource-programming-languages",
+      "path": "articles/news-openai-multilangbench-low-resource-programming-languages.json",
+      "sha256": "9227746219cf1d9c9053322a3cb76b251f88ee3ab07f330b7c9aabe610badd33"
+    },
+    {
+      "slug": "news-github-public-git-https-temporary-authentication",
+      "path": "articles/news-github-public-git-https-temporary-authentication.json",
+      "sha256": "74857b405f774d0d4175b9460f3f28d789d216e2ff3fec27ebc7517234d6c2a3"
+    },
+    {
+      "slug": "news-github-ssh-security-changes-2026",
+      "path": "articles/news-github-ssh-security-changes-2026.json",
+      "sha256": "24650fa1861630ff6eeefc3a8236830cfdfd5c8d8c35c0f1baebda62a733b365"
+    },
+    {
+      "slug": "news-aws-lambda-web-functions-http-servers",
+      "path": "articles/news-aws-lambda-web-functions-http-servers.json",
+      "sha256": "f2f268e280e556c8662217839522e4bcacd06bf9a8d4e48748d73d94d0c6f4d8"
+    },
+    {
+      "slug": "news-anthropic-claude-haiku-5-5-cost-boundary",
+      "path": "articles/news-anthropic-claude-haiku-5-5-cost-boundary.json",
+      "sha256": "a767db7755f0c56b97dc0799a1dd926690ef657ef5d30fa721251ac85e450e6a"
+    },
+    {
+      "slug": "news-openai-responses-api-12-hour-prompt-caching",
+      "path": "articles/news-openai-responses-api-12-hour-prompt-caching.json",
+      "sha256": "028556fc3d5381b4cec0b8638ab4167ab64df201d999b786b75693d3404b4ead"
+    },
+    {
+      "slug": "news-php-critical-rce-october-2026-security-update",
+      "path": "articles/news-php-critical-rce-october-2026-security-update.json",
+      "sha256": "b54adff601a2813b5e4b597df01dd6258650a30355fc9957e0d687e3769428eb"
+    }
+  ],
+  "assets": [
+    {
+      "path": "verification/uv-locking.py",
+      "sha256": "7345341868f4da712c629a268d1e2864251f02f3a3e063bb644a197f9ee6dfd3"
+    }
+  ]
+}

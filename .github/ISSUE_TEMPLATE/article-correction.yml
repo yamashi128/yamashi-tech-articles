@@ -1,0 +1,48 @@
+name: 記事の訂正・情報更新
+description: 事実誤認、情報の更新、リンク切れ、検証上の問題を報告する
+title: "[記事訂正] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ご報告ありがとうございます。Issueは公開されます。個人情報、認証情報、非公開データは記載しないでください。
+  - type: input
+    id: article_url
+    attributes:
+      label: 記事URL
+      placeholder: https://yamashi-tech.com/articles/...
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 指摘の種類
+      options:
+        - 事実・数値・比較条件の誤り
+        - 情報の更新
+        - コード・再現手順の問題
+        - リンク切れ
+        - 誤字・読みやすさ
+    validations:
+      required: true
+  - type: textarea
+    id: location
+    attributes:
+      label: 問題のある箇所
+      description: 見出しと該当文、またはコードの箇所を記載してください。
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: 指摘内容・修正案
+      description: 何が違うのか、どう直すとよいかを教えてください。
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: 根拠URL・確認方法
+      description: 公式資料、原論文、再現条件など。根拠を見つけられない場合はその旨も記載できます。
+    validations:
+      required: true

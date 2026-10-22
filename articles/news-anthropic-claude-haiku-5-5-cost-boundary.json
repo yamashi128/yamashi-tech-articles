@@ -1,0 +1,140 @@
+{
+  "slug": "news-anthropic-claude-haiku-5-5-cost-boundary",
+  "title": "Claude Haiku 5.5公開：低価格モデルほど100K token境界とtask分離を先に見る",
+  "category": "News",
+  "tags": [
+    "AI / ML",
+    "AI Agents",
+    "Software Engineering",
+    "Industry"
+  ],
+  "summary": "Anthropicは高volume・cost-sensitive用途向けのClaude Haiku 5.5を公開した。100K tokens以下と超過で単価が5倍に分かれるため、provider benchmarkだけで置換せず、taskの狭さ、context長、quality、総token量を自分のworkflowで測る必要がある。",
+  "publishedAt": "2026-10-20",
+  "updatedAt": "2026-10-20",
+  "checkedAt": "2026-10-20",
+  "readingMinutes": 10,
+  "limitations": [
+    "本稿はAnthropicの2026年10月7日の発表、model page、system card index、Transparency Hubを照合した資料調査である。API key、月額credit、Amazon Bedrock、Google Cloud、Microsoft Azure、computer use、browser use、課金を伴うmodel callは実行していない。",
+    "速度、capability、benchmark、misalignment減少、90%のrequestが100K tokens以下だったという値はAnthropic自身の測定・記述であり、独立benchmarkや個別workloadでの保証ではない。",
+    "価格は1 million tokens当たりのlist priceで、prompt caching、batch、platform markup、tool call、retry、compaction、output長、network、human reviewを含む総費用ではない。",
+    "model ID、pricing、context条件、availability、safeguard、SDK、cloud提供状態は変わり得る。migration前に最新documentationと対象providerの条件を確認する必要がある。"
+  ],
+  "sections": [
+    {
+      "heading": "要点：安いmodelへの置換ではなく、狭いtaskを切り出せるかが先",
+      "paragraphs": [
+        "Anthropicは2026年10月7日、Claude Haiku 5.5を公開した。高volumeでcost-sensitiveな処理を主対象にし、compaction、summarization、subagent workなど、比較的狭く定義できるtaskを例として挙げる。Claude Platformのmodel IDは`claude-haiku-5-5`で、AWS、Google Cloud、Microsoft Azureを含むplatformで提供するとしている。",
+        "価格のheadlineだけを見ると既存Haikuからの一括置換に見えるが、100K input tokensを境にinput、output、cacheの単価が分かれる。Recommendationとして、routingをmodel名で決めず、taskの成功条件、最大context、expected output長、fallback、review costを先に定義したい。"
+      ],
+      "bullets": [
+        "Fact：100K tokens以下のinputは100万tokens当たり0.10ドル、outputは0.50ドル",
+        "Fact：100K tokens超のinputは0.50ドル、outputは2.50ドル",
+        "Fact：computer useとbrowser useのSDK supportはbetaとして案内",
+        "Recommendation：狭いtaskからshadow evaluationし、総費用と失敗型で判断する"
+      ]
+    },
+    {
+      "heading": "何が起きたか：Haiku 5.5をClaude 5.5 familyの小型modelとして追加",
+      "paragraphs": [
+        "Haiku 5.5は、同じfamilyのSonnet 5.5やOpus 5.5より高volume向けの位置付けである。Anthropicはfastest、most efficientと表現するが、これは同社のmodel familyとstandard speedを前提にしたprovider claimである。footnoteではOpusのFast Modeより遅い場合があることも示している。",
+        "Free、Pro、Max、Team、EnterpriseのClaude.aiでも選択でき、APIではClaude Platformに加えて主要cloud経由のavailabilityが示された。ただしplatformごとのregion、quota、data handling、price、release timingが完全に同じとは限らない。本稿ではどのplatformでもlive callを行っていない。"
+      ],
+      "table": {
+        "caption": "Anthropicが公開したHaiku 5.5の標準token価格",
+        "columns": [
+          "項目",
+          "100K tokens以下",
+          "100K tokens超",
+          "注意"
+        ],
+        "rows": [
+          [
+            "Input",
+            "$0.10 / 1M",
+            "$0.50 / 1M",
+            "5倍の境界"
+          ],
+          [
+            "Output",
+            "$0.50 / 1M",
+            "$2.50 / 1M",
+            "長い生成で総額が増える"
+          ],
+          [
+            "Cache read",
+            "$0.01 / 1M",
+            "$0.05 / 1M",
+            "hit率を別に測る"
+          ],
+          [
+            "Cache write",
+            "$0.125 / 1M",
+            "$0.625 / 1M",
+            "書込み頻度を含める"
+          ]
+        ]
+      }
+    },
+    {
+      "heading": "価格境界：request単価ではなくtoken flowで計算する",
+      "paragraphs": [
+        "Anthropicは、100K tokens以下のrequestでHaiku 4.5より90%低いpriceと説明し、以前のHaiku requestの約90%がこの範囲だったとする。ただしHaiku 5.5は更新されたtokenizerを使い、同じtaskでも使用token数が少し増えると注記している。単価だけ比較して同じpromptのinvoiceが正確に10分の1になるとは言えない。",
+        "agent workflowではsystem prompt、tool schema、conversation history、retrieved context、compaction、retryがinputへ積み上がる。100K境界を跨ぐrequestだけでなく、同じtaskを何回呼ぶか、outputを別modelが読み直すかも総費用へ効く。production logからtoken分布を作り、p50だけでなくp95と最大値を見る必要がある。"
+      ]
+    },
+    {
+      "heading": "性能の読み方：provider benchmarkと自分のacceptance testを分ける",
+      "paragraphs": [
+        "Anthropicはcoding、computer use、agent taskなどのbenchmarkをsystem cardへ示しているが、記事内の値はmodel、prompt、scaffold、reasoning、tool、sampling、grader条件に依存する。Haikuが特定benchmarkで高得点でも、自社の日本語support、JSON contract、security review、domain knowledgeで同じ結果になるとは限らない。",
+        "小型modelのevaluationでは、平均scoreだけでなく、誤って成功と報告するfalse success、schemaは満たすが意味が間違うcase、長いcontextの取り落とし、retry増加を見る。qualityが少し下がってもhuman reviewが急増すれば、token単価の差を打ち消す。これはprovider発表から独立した編集部のRecommendationである。"
+      ]
+    },
+    {
+      "heading": "誰に向くか：明確なcontractを持つ高volumeの下位task",
+      "paragraphs": [
+        "候補は、入力と正解条件を明文化できるclassification、短いsummarization、context compaction、format変換、候補抽出、上位agentが検査できるsubtaskである。failureを検出しやすく、難しいcaseをSonnetやOpus、人へfallbackできるほど、小型modelのcost advantageを安全に使いやすい。",
+        "反対に、曖昧な要求の最終判断、不可逆な外部操作、長大なrepository全体の理解、専門的なrisk判断を、価格だけを理由に無監督で移すべきではない。Haiku 5.5の発表も、あらゆるtaskで上位modelを置き換えるとは述べていない。"
+      ]
+    },
+    {
+      "heading": "今できること：shadow evaluationでrouting ruleを作る",
+      "paragraphs": [
+        "まずproduction trafficを送らず、過去に人が確定したinputとexpected outputを用意する。旧modelとHaiku 5.5を同じcontractで比較し、task success、semantic error、latency、input／output token、retry、fallback、review timeを記録する。provider benchmarkとは別のclaim ledgerとして残す。",
+        "次にtrafficの一部をread-onlyまたは提案生成へshadowし、100K境界を跨ぐrequestを分類する。contextを切れば安くなる場合も、必要なevidenceまで落とせばqualityが壊れる。compactionは元資料へのlinkとloss testを持ち、単にtokenを減らす処理として扱わない。"
+      ],
+      "code": {
+        "label": "model routingで記録する最小項目",
+        "language": "text",
+        "value": "task_type, model_id, input_tokens, output_tokens\ncontext_over_100k, cache_read, cache_write\naccepted, semantic_error, retry_count, fallback_model\nlatency_ms, estimated_cost, reviewer_minutes"
+      }
+    },
+    {
+      "heading": "safety claim：改善報告は、誤動作ゼロの保証ではない",
+      "paragraphs": [
+        "AnthropicはHaiku 4.5と比べ、多くのalignment evaluationで改善し、misaligned behaviorやmisuseへの協力が減ったと報告する。cybersecurity safeguardはHaiku 4.5よりrestrictiveで、Sonnet 5.5など最近のmodelより防御taskを広く許す一方、penetration testingなどをblockすると説明する。",
+        "これらはAnthropic自身のevaluationとpolicyであり、prompt injection、tool misuse、data leakage、誤ったactionが起きないことを証明しない。外部toolへ接続するapplicationでは、least privilege、approval、sandbox、output validation、audit log、rollbackをmodel外で実装する必要がある。"
+      ]
+    },
+    {
+      "heading": "次に確認する条件：実token分布とplatform条件が揃ったとき",
+      "paragraphs": [
+        "次の確認条件は、Anthropicがsystem card、pricing、100K境界、model ID、cloud availability、SDK beta、safeguardを更新したときである。導入teamでは、少なくとも一週間分など代表trafficのtoken分布と、failure caseが集まった時点でroutingを再評価する。",
+        "現時点の結論は、Haiku 5.5は高volumeの狭いtaskを切り出す有力候補だが、『安いから全callを置換』するmodelではない。100K境界、総token flow、semantic acceptance、fallback、人のreviewまで含めて初めてcost-performanceを判断できる。"
+      ]
+    }
+  ],
+  "references": [
+    {
+      "label": "Anthropic — Introducing Claude Haiku 5.5 (2026-10-07)",
+      "url": "https://www.anthropic.com/claude-haiku-5-5"
+    },
+    {
+      "label": "Anthropic — Model system cards (checked 2026-10-20)",
+      "url": "https://www.anthropic.com/system-cards"
+    },
+    {
+      "label": "Anthropic — Transparency Hub: Claude Haiku 5.5 (checked 2026-10-20)",
+      "url": "https://www.anthropic.com/transparency"
+    }
+  ]
+}

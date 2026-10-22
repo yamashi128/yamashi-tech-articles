@@ -1,0 +1,95 @@
+# Generative Agentsを読む：記憶は保存より取り出し方
+
+YAMASHI TECH AI Editorial Desk | Research | AI / ML / AI Agents
+
+[掲載ページ](https://yamashi-tech.com/articles/paper-generative-agents-memory) · [原稿データ](../articles/paper-generative-agents-memory.json)
+
+公開: 2026-09-17 / 更新: 2026-10-22 / 確認: 2026-10-22
+
+25人のエージェントが暮らす街の裏で、記憶はどう保存・検索・抽象化されたのか。長期稼働するAIへ応用できる設計と危うさを読む。
+
+## 25人の街は、記憶architectureの実験だった
+
+Generative Agentsは、LLMで動く25人のagentを、The Simsのような小さな街へ置いた研究だ。住人は起床し、仕事へ行き、会話し、予定を立てる。ある住人へバレンタインパーティーを企画したいというseedを与えると、招待が会話で広まり、別の住人が相手を誘い、当日に参加者が集まる振る舞いが観察された。
+
+派手なのは社会simulationだが、技術的な中心はmemory stream、reflection、planningの三層にある。すべての過去logをpromptへ詰め込まず、経験を時系列で保存し、現在の状況に関係する記憶を取り出し、複数の経験から抽象的な知識を作る。長く動くagentで、context windowをどう使うかという問題を具体化した。
+
+## Memory streamは、経験を自然言語で積む
+
+agentが観察した出来事は、timestamp付きの自然言語としてmemory streamへ追加される。会話、場所、行動だけでなく、自分が作ったreflectionも同じstreamへ入る。次の行動を決めるときは、現在の状況と関係する一部だけを取得してpromptへ渡す。
+
+この設計の利点は、保存形式を特定taskの状態変数へ固定せず、さまざまな経験を同じ検索対象にできることだ。一方、自然言語memoryは曖昧で、誤認もそのまま残る。databaseへ書かれたから事実になったわけではなく、観察者、出典、確度、更新可能性を別に持たせる余地がある。
+
+## 取り出しは、recency・importance・relevanceの合計
+
+memory retrievalは三つのscoreで決まる。recencyは最後に取得してからの時間で減衰し、論文ではsandbox内の1時間ごとに0.995を掛けた。importanceは、出来事がどれだけ重要かをLLMへ1〜10で評価させる。relevanceは、現在のqueryとmemoryのembedding cosine similarityで測る。正規化した三項を、実験ではすべて重み1で合計した。
+
+この式は完成した最適解ではなく、検索要件を分解したbaselineとして価値がある。新しい記憶だけを取れば長期目標を忘れ、意味の近さだけなら重要でない雑談が増え、importanceをモデル判定だけに任せれば誤差が入る。どのscoreが効いて選ばれたかをlogへ残すと、検索の偏りを調整できる。
+
+論文のretrieval scoreを簡略化
+
+```python
+score = (
+    normalize(recency(memory))
+    + normalize(importance(memory))
+    + normalize(relevance(memory, current_context))
+)
+return top_k_that_fit_context(memories, score)
+```
+
+## Reflectionは、出来事を知識へまとめ直す
+
+個別のmemoryだけでは、『最近よく会う相手を気にしている』『研究を続けたい』のような高次の傾向を毎回推論し直すことになる。そこでimportanceの累積が閾値を超えると、agentは最近の記憶から重要な問いを作り、複数の出来事を根拠にreflectionを生成する。さらにreflectionを材料に新しいreflectionを作るtree構造も取れる。
+
+planningは、朝の大まかな予定を作り、状況に応じて時間単位、分単位へ分解・更新する。過去の経験を探すretrieval、意味をまとめるreflection、未来を拘束するplanを分けたため、会話だけでなく時間をまたぐ一貫性が出た。現在のagentでも、raw log、要約知識、未完了計画を同じ欄へ混ぜない設計に応用できる。
+
+## ablationは、三層が別々に効いたことを示す
+
+評価では、観察者がagentの行動をどれだけ人間らしく信じられるかを比較した。完全構成のTrueSkill平均は29.89、reflectionを除くと26.88、reflectionとplanningを除くと25.64、memory・reflection・planningをすべて除くと21.21だった。crowdworkerが書いた回答は22.95だった。
+
+完全構成と全componentなしの差には大きなeffect sizeが報告された。ただし、これは回答のbelievability評価であり、agentが正しい事実を知る、現実の人間行動を予測する、taskを最適に達成することを直接測っていない。用途に応じて、真実性、task成功、cost、privacyを別に評価する必要がある。
+
+ablation studyのTrueSkill評価。高いほど観察者が振る舞いをbelievableと評価
+
+| 構成 | 平均 μ | 読み取れること |
+| --- | --- | --- |
+| Full architecture | 29.89 | 三層を組み合わせた構成が最高 |
+| Reflectionなし | 26.88 | 抽象化を外すと一貫性が落ちる |
+| Reflection・Planningなし | 25.64 | retrievalだけでは将来の整合が弱い |
+| 三層すべてなし | 21.21 | 現在の観察だけでは長期性が乏しい |
+| Crowdworker | 22.95 | 比較対象であり、人間一般の上限ではない |
+
+## 業務agentへの応用案：観察・仮説・計画・profileを分ける
+
+ここからは論文の三層をそのまま再現する手順ではなく、業務agent向けの編集部の設計案である。観察、仮説、計画、長期的なprofileを別のrecord typeにする。『testがexit code 1だった』は観察事実、『依存versionが原因らしい』は仮説、『次にlockfileを比較する』は計画だ。これらを一つの要約文へ混ぜると、後から仮説だけを捨てられない。
+
+各memoryへ、source、作成時刻、対象version、confidence、失効条件を付ける。外部状態を扱うならTTLも必要だ。価格や権限の記憶は、数日前に正しくても現在の操作根拠にはできない。検索結果には、どのscoreで選ばれたかと、採用しなかった重要memoryがないかを確認するdebug viewを用意する。
+
+| 記憶種別 | 例 | 更新ルール |
+| --- | --- | --- |
+| Observation | test失敗、API応答、ユーザー指示 | sourceを保持し、原文を改変しない |
+| Reflection | 失敗原因の仮説、好みの要約 | 根拠memoryへlinkし、反証で更新 |
+| Plan | 次の操作、期限、停止条件 | 完了・中止・置換を明示 |
+| Profile | 長期的な制約、役割 | 利用者の確認と削除手段を持つ |
+
+## もっとも危険なのは、自然に見える誤記憶
+
+長期memoryは便利だが、誤った推論も再利用して強化する。reflectionが元の観察より読みやすいため、後続agentが要約だけを信じる危険もある。定期的にsourceへ戻れる構造、矛盾検出、古いmemoryの失効、利用者が訂正・削除できるUIが必要だ。
+
+会話、行動履歴、関係性を保存するsystemではprivacyの影響も大きい。何を保存するか、何日残すか、誰が検索できるか、model改善へ二次利用するかを明示する。Generative Agentsの街はclosed sandboxだった。現実の人間を扱う製品では、believabilityより同意とデータ最小化が先に来る。
+
+## この論文から持ち帰る設計原則
+
+この研究の価値は、agentに人格を与えれば人間らしくなるという主張ではない。長期稼働に必要な処理を、保存、検索、抽象化、計画へ分割し、それぞれをablationで確かめたところにある。
+
+長いtaskで文脈が切れるなら、まず全logを増やすのではなく、現在の判断に必要な記憶を選ぶ。検索理由を記録し、要約を原文へlinkし、計画を状態として管理する。記憶量ではなく、必要なときに正しい過去へ戻れることが、長期agentの品質を決める。
+
+## 制約と未検証範囲
+
+- 25体のagentを使ったsimulated environmentの結果であり、人間と同等の社会行動やproduction運用の信頼性を示すものではない。
+
+## 確認したもの
+
+- [Generative Agents: Interactive Simulacra of Human Behavior — arXiv](https://arxiv.org/abs/2304.03442)
+- [Generative Agents paper — HTML](https://arxiv.org/html/2304.03442)
+- [Generative Agents source code](https://github.com/joonspk-research/generative_agents)

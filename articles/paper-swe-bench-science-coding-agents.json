@@ -1,0 +1,182 @@
+{
+  "slug": "paper-swe-bench-science-coding-agents",
+  "title": "SWE-bench Scienceを読む：公開testを通すだけでは、科学的に正しい修正にならない",
+  "category": "Research",
+  "tags": [
+    "AI / ML",
+    "AI Agents",
+    "Software Engineering"
+  ],
+  "researchFormat": "Paper Review",
+  "summary": "119 task・98 repository・20科学分野でcoding agentを評価したSWE-bench Scienceを読む。論文内の最高pass@1は47.90%。更新されるleaderboardと論文の結果を分け、科学softwareで何を守るtestが必要かを考える。",
+  "publishedAt": "2026-10-20",
+  "updatedAt": "2026-10-22",
+  "checkedAt": "2026-10-22",
+  "readingMinutes": 16,
+  "limitations": [
+    "本稿はarXiv preprint、公式benchmark repository、dataset card、公式leaderboardの資料調査である。2026年10月22日に論文v2のFigure 2・Table 2とleaderboardを再照合した。論文内の8構成と、更新されるleaderboardの結果は別のsnapshotとして扱う。査読済みpublicationとしては扱わない。",
+    "119 taskのcontainer image、verifier image、agent実行、Docker Hub artifact、private verifier、model API、課金を伴うevaluationは再実行していない。数値は著者・benchmark運営者が公開した条件に限られる。",
+    "leaderboardは更新される。47.90%は2026年10月9日更新の公式pageで表示されたClaude Opus 5 max構成の値であり、将来の順位、別harness、別model version、個別repositoryの成功率を保証しない。",
+    "科学softwareは20分野を含むが、119 taskで全分野、全言語、全規模、production research workflowを代表するとは限らない。task licenseと再配布範囲にも区分がある。"
+  ],
+  "sections": [
+    {
+      "heading": "結論：科学codeの修正は、programが動くことと結論を守ることの二重testになる",
+      "paragraphs": [
+        "SWE-bench Scienceは、coding agentが科学softwareのrepository-level taskを解けるかを測るbenchmarkだ。119 taskを98のGitHub repository、20の科学分野から構成し、Issue-driven、Expert-exploratory、Engineering-integrationの三つへ分ける。著者の中心的な問題意識は、科学softwareのbugがprogram behaviorだけでなく研究結果の根拠を壊し得ることにある。",
+        "公式leaderboardの2026年10月9日更新では、Claude CodeとClaude Opus 5 maxの構成が47.90% pass@1と表示され、半数へ届かない。重要なのはmodel rankingだけではない。失敗分析は、科学知識不足、表面的な探索、integrationの取り落とし、観測例を越えて一般化できない修正を分け、test passの背後で何が壊れるかを示す。"
+      ],
+      "bullets": [
+        "Numeric fact：119 task、98 repository、20 scientific domain",
+        "Numeric fact：52 Issue-driven、49 Expert-exploratory、18 Engineering-integration",
+        "Numeric fact：公式leaderboard上の最高表示は47.90% pass@1（2026-10-09更新）",
+        "Inference：科学softwareではdomain invariantをtest contractへ落とせないとagent reviewも弱くなる"
+      ]
+    },
+    {
+      "heading": "研究上の問い：既存SWE benchmarkが測りにくかった科学的correctness",
+      "paragraphs": [
+        "一般のrepository repair benchmarkは、Issue、reference patch、testを使ってagentの成功率を測る。科学softwareでは、数値単位、対称性、境界条件、物理法則、data modelなど、repository固有の科学的contractが修正の正しさを決める。syntaxやvisible testだけ直しても、結果の意味が変われば修正とは言えない。",
+        "本研究は、task成功率だけでなく失敗理由へ踏み込む。agentが必要なdomain knowledgeを持たない場合、検索方向を誤る場合、local fixはできてもcross-module integrationを落とす場合、既知のexampleへoverfitする場合を分析する。これにより『失敗した』をmodel能力一語で終わらせず、harness、情報、test、reviewへ分解できる。"
+      ]
+    },
+    {
+      "heading": "task設計：Issue、専門家探索、system integrationを分けた",
+      "paragraphs": [
+        "Issue-drivenは既存Issueやpull requestに近いproblem statementから修正する。Expert-exploratoryは専門家が示す科学的な問いをrepository内で探索し、必要なimplementationへ落とす。Engineering-integrationはcomponentやmoduleをまたぐ接続を扱う。三つを分けることで、bug report追従だけでなく、曖昧な科学要求と統合作業を含める。",
+        "dataset cardによると、構成は52、49、18 taskで、割合は約43.7%、41.2%、15.1%になる。分野は化学24、材料科学・工学16、生物13、生体医工学12、物理11が大きく、数学、天文学、大気科学などが続く。分野数が広い一方、task数は均等ではない。"
+      ],
+      "table": {
+        "caption": "SWE-bench Scienceの三つのtask paradigm",
+        "columns": [
+          "paradigm",
+          "task数",
+          "主な要求",
+          "失敗を見たい層"
+        ],
+        "rows": [
+          [
+            "Issue-driven",
+            "52",
+            "報告された不具合を追跡して修正",
+            "探索、再現、regression"
+          ],
+          [
+            "Expert-exploratory",
+            "49",
+            "専門的な問いから必要変更を発見",
+            "domain knowledge、仮説"
+          ],
+          [
+            "Engineering-integration",
+            "18",
+            "module／componentをまたいで統合",
+            "interface、coverage、system整合"
+          ]
+        ]
+      }
+    },
+    {
+      "heading": "評価環境：repositoryとverifierを分離し、同じartifactを再現する",
+      "paragraphs": [
+        "公開releaseはtaskごとにruntime environment imageとprogrammatic verifier imageを持ち、`linux/amd64`のimmutable digestで固定する。GitHub repositoryはdocumentation、architecture、tooling、audit record、Hugging Faceはtask tableとbundle、Docker Hubはenvironmentとverifier imageを担う。",
+        "default selectionはlicense制限の少ない96 task、restricted selectionは23 taskで、GPL／LGPL／AGPL familyを含むtaskも区別される。benchmark tooling自体がMITでも、upstream codeやfixtureのlicenseまで一律にMITになるわけではない。再現する利用者はtask artifactの出典とlicenseを個別に守る必要がある。"
+      ],
+      "code": {
+        "label": "benchmarkが分離する評価単位",
+        "language": "text",
+        "value": "task bundle: repository snapshot + task statement + metadata\nruntime image: agentが修正を行う環境\nverifier image: clean baselineへpatchを適用して判定\nresult: task-level pass/fail + aggregate pass@1\nprovenance: source repository, commit, license, image digest"
+      }
+    },
+    {
+      "heading": "主要結果：論文の47.90%と、更新されるleaderboardを分ける",
+      "paragraphs": [
+        "論文v2のTable 2は8構成を比較し、その中ではClaude Opus 5 maxとClaude Codeの組合せが47.90%で最高だった。これは119 taskにおけるtask-level pass@1であり、適用されるprivate testをすべて通したtaskの割合を表す。public scoreの96.64%とは異なる指標である。",
+        "一方、2026年10月22日に取得した公式leaderboardでは、GPT-6 Astra maxとCodexが50.42%、Claude Opus 5 maxとClaude Codeが47.90%と表示された。ページの更新表示は2026年10月9日である。初版は論文とleaderboardを混同し、47.90%を公開leaderboardの最高値として読める説明になっていたため訂正した。掲載構成や結果が変わるleaderboardを、論文内の固定された比較表の代わりには使えない。",
+        "47.90%を『科学codeの半分を自動修正できる』と一般化してはいけない。taskは選定済みのsnapshotとverifierを持ち、agent、model、reasoning effort、token budget、harnessの条件が固定される。production repositoryには未記述のrequirement、private data、hardware、review、release責任が追加される。"
+      ]
+    },
+    {
+      "heading": "四つの失敗機構：知識不足だけでは説明できない",
+      "paragraphs": [
+        "著者は失敗を四つの反復patternに整理する。第一は科学知識または抽象化の不足、第二は探索を誤るか表面だけを直すこと、第三はrepair coverageやsystem integrationの不足、第四は観測したcaseを越えて科学知識を一般化できないことだ。modelが用語を知っていても、正しいfileとinvariantへ結び付けられなければ成功しない。",
+        "実務reviewでは、この分類をchecklistへ移せる。patchがdomain equationやunitを守るか、root causeまで辿ったか、call siteとserializationを含むか、visible example以外のboundaryで成り立つかを見る。単にtest数を増やすのではなく、どのfailure classを捕まえるtestかを明示する。"
+      ],
+      "table": {
+        "caption": "論文が整理したfailure mechanismと実務review",
+        "columns": [
+          "失敗機構",
+          "patchに現れる兆候",
+          "追加する確認"
+        ],
+        "rows": [
+          [
+            "科学知識／抽象化不足",
+            "単位・対称性・domain ruleを誤る",
+            "専門家review、invariant test"
+          ],
+          [
+            "誤探索／表面修正",
+            "症状だけ条件分岐で隠す",
+            "root-cause trace、反例"
+          ],
+          [
+            "coverage／integration不足",
+            "一moduleだけ成功",
+            "end-to-endとinterface test"
+          ],
+          [
+            "一般化失敗",
+            "示されたexampleだけ通る",
+            "property、boundary、unseen case"
+          ]
+        ]
+      }
+    },
+    {
+      "heading": "科学知識ablation：情報を増やせば常に良くなるわけではない",
+      "paragraphs": [
+        "研究は91 taskのscience-knowledge splitで、明示的な科学guidanceを除き、repositoryと実行可能なengineering contextを保つpaired ablationを行った。abstractによると、taskへ正しくgroundされた情報はrepairを制約し、平均performanceとtoken efficiencyを改善できる。一方、taskとずれたguidanceはanchoringを誘発し、exact repair成功を必ずしも上げない。",
+        "これはRAGや長いinstructionへdomain documentを大量投入する設計への注意になる。情報量ではなく、対象version、該当module、source、反証可能性を持つcontextが必要だ。agentへguidanceを与える場合も、仮説として扱い、repository evidenceとtestが反するなら捨てられる形にする。"
+      ]
+    },
+    {
+      "heading": "再現性と限界：公開artifactがあってもprivate verifierは境界になる",
+      "paragraphs": [
+        "本稿で確認したものは、公式repositoryが公開するarchitecture、task metadata、image digest、selection、release verification手順である。一方、reference answer patch、credential、agent trajectory、private verifier testはreleaseに含めないと説明する。benchmark leakageを防ぐ意図は理解できるが、第三者が判定内容を完全にinspectする範囲には限界がある。",
+        "本稿では119 imageのdownloadやevaluationを行っていない。full runには大きなcompute、storage、model cost、license確認が必要になる。結果を再利用するときは、leaderboardの更新日、model snapshot、harness、reasoning、token、task selectionを一緒に記録し、model名だけで比較しない。"
+      ]
+    },
+    {
+      "heading": "実務への応用：科学softwareはagent採用より先にcontractを外へ出す",
+      "paragraphs": [
+        "科学codeでagentを使うなら、最初はread-only調査、test候補、影響範囲の列挙に限定する。unit、coordinate system、acceptable tolerance、conservation、random seed、reference data、citationをmachine-readableなtestとdocumentへ置く。agentのpatchは専門家が意味をreviewし、clean environmentで再計算する。",
+        "SWE-bench Scienceが示すのは、強いmodelへ科学説明を足せば自動化が完成することではない。正しくgroundされたcontext、公開testと独立したverifier、integration coverage、domain expertの異議申立てを一つのworkflowへする必要がある。47.90%という値より、残りを四つの失敗へ分解した点が実務には長く残る。"
+      ],
+      "bullets": [
+        "domain invariantを文章だけでなくtestとschemaへ落とす",
+        "visible test通過とscientific acceptanceを別のgateにする",
+        "guidanceにはsource、version、適用範囲、反証条件を付ける",
+        "agent patchの採用責任をbenchmark scoreへ委ねない"
+      ]
+    }
+  ],
+  "references": [
+    {
+      "label": "SWE-bench Science: Can Coding Agents Resolve Engineering Tasks in Science? — arXiv",
+      "url": "https://arxiv.org/abs/2608.19799"
+    },
+    {
+      "label": "SWE-bench Science v2 — Figure 2・Table 2（2026-10-22確認）",
+      "url": "https://arxiv.org/pdf/2608.19799v2"
+    },
+    {
+      "label": "OpenMOSS — SWE-bench Science official repository",
+      "url": "https://github.com/OpenMOSS/SWE-bench-Science"
+    },
+    {
+      "label": "SWE-bench Science — official leaderboard (checked 2026-10-22)",
+      "url": "https://swescience.github.io/"
+    }
+  ]
+}

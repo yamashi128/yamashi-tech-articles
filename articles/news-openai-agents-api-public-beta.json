@@ -1,0 +1,191 @@
+{
+  "slug": "news-openai-agents-api-public-beta",
+  "title": "OpenAI Agents APIが公開ベータに：CodexのharnessをAPIから使う意味",
+  "category": "News",
+  "tags": [
+    "AI / ML",
+    "AI Agents",
+    "DevTools",
+    "Software Engineering",
+    "Industry"
+  ],
+  "summary": "OpenAIがCodexのharnessをmanaged APIとして公開した。Responses APIやAgents SDKとの違い、費用、data controls、いま試すべきチームを一次情報から整理する。",
+  "publishedAt": "2026-09-17",
+  "updatedAt": "2026-09-17",
+  "checkedAt": "2026-09-17",
+  "readingMinutes": 12,
+  "limitations": [
+    "Agents APIはpublic betaであり、API shape、利用条件、対応地域、料金、SDK namespaceはgeneral availabilityまでに変わる可能性がある。",
+    "この記事ではAPI keyや課金を使用したlive sessionを実行していない。code sampleとevent semanticsは2026年9月17日時点の公式quickstartに基づく。",
+    "個別組織のsecurity、privacy、法令、data residency要件への適合性は評価していない。導入前に自組織の要件と最新のdata controlsを照合する必要がある。"
+  ],
+  "sections": [
+    {
+      "heading": "要点：agent loopではなく、運用基盤までmanagedになった",
+      "paragraphs": [
+        "OpenAIは2026年9月10日、Agents APIを全開発者向けのpublic betaとして公開した。これはmodelへpromptを送り、tool callを自分で繰り返すためだけのAPIではない。Codexで使われているharnessをOpenAIが運用し、session、context compaction、回復、tool利用、subagent、sandboxを一つのruntimeとして提供する。",
+        "対象は、数分から数日にまたがる調査、coding、incident responseのように、途中経過を保存しながら作業を続けるagentだ。短い応答や、自前のworkflowを厳密に制御したい処理では、Responses APIやAgents SDKのほうが単純な場合もある。public betaである以上、すぐ全面移行するより、失敗を判定できる一つのworkflowで評価を始めるのが妥当だ。"
+      ],
+      "bullets": [
+        "変わったこと：Codex harnessをOpenAI-managed APIとして利用できるようになった",
+        "向く仕事：長時間、複数tool、再開、成果物生成、subagent分担が必要なtask",
+        "注意点：public beta、従量課金、米国内data residencyのみ、Zero Data Retention非対応"
+      ]
+    },
+    {
+      "heading": "何が起きたか：9月10日にpublic betaを開始",
+      "paragraphs": [
+        "発表主体はOpenAIで、発表日は2026年9月10日。公式発表は、Agents APIをCodexと同じharnessおよびinfrastructureを開発者へ提供するものと説明している。2026年9月17日の確認時点ではpublic betaで、全開発者が対象とされ、Agents API自体の追加料金はない。利用者は選択したmodelのtoken、OpenAI tools、OpenAI-hosted sandboxのcontainerなど、実際に使った基盤へ料金を支払う。",
+        "最上位のresourceはsessionだ。session作成時にmodel、instructions、tools、MCP server、multi-agent設定、execution environmentを指定できる。入力を送るとturnが始まり、streamまたはwebhookでeventを受け取り、同じsessionへ追加指示を送ったり、途中でsteerしたりできる。OpenAI-hosted sessionでは、harnessだけでなくsandboxのprovisioningと管理もOpenAIが担当する。",
+        "発表文に掲載された導入企業の数値は各社の個別workflowにおける結果であり、一般的な性能保証ではない。この記事ではmarketing上の事例値を比較根拠に使わず、公開仕様と利用条件を中心に扱う。"
+      ]
+    },
+    {
+      "heading": "以前との違い：Responses APIやAgents SDKを置き換えるわけではない",
+      "paragraphs": [
+        "Agents API、Agents SDK、Responses APIは、同じものを抽象度違いで呼び直した名称ではない。違いは、agent loopと状態を誰が運用するかにある。Agents APIではOpenAIがCodex harnessを実行し、session構成、turn、itemを保存する。Agents SDKではapplication側がruntimeを持ち、SDKのrunnerでtoolやhandoffを制御する。Responses APIではmodel responseを中心に、必要なorchestrationをapplicationが組み立てる。",
+        "したがって、既存のResponses API実装を一律に移行する理由はない。単発の生成、構造化出力、短いtool callならResponses APIのほうが構成要素が少ない。独自の承認flow、storage、runtime統合を強く制御したい場合はAgents SDKが合う。Agents APIの価値は、長く動くagentの状態管理とharness改善をservice側へ任せられる点にある。"
+      ],
+      "table": {
+        "caption": "公式runtime比較を、導入判断の観点で整理",
+        "columns": [
+          "選択肢",
+          "誰がagent loopを運用するか",
+          "向く用途"
+        ],
+        "rows": [
+          [
+            "Agents API",
+            "OpenAIがmanaged Codex harnessを運用",
+            "長時間task、保存と再開、managed sandbox、multi-agent"
+          ],
+          [
+            "Agents SDK",
+            "application内でSDK runnerを運用",
+            "独自tool、handoff、承認、deploymentを細かく制御"
+          ],
+          [
+            "Responses API",
+            "applicationがresponseと状態を構成",
+            "直接的なmodel利用、短いworkflow、独自orchestration"
+          ]
+        ]
+      }
+    },
+    {
+      "heading": "managed harnessが引き受ける範囲",
+      "paragraphs": [
+        "公式overviewは、sandboxでのcommand実行とfile編集、skillsとinstructionsの適用、toolやMCPとの接続、mid-turn steering、context compaction、subagentへの委譲、session再開をmanaged harnessの機能として挙げている。agentを長時間動かす際に必要だった『過去のどの情報を残すか』『切断後にどう戻すか』『複数workerの結果をどう統合するか』が、個別applicationだけの責任ではなくなる。",
+        "ただしmanagedは、業務要件まで自動で正しくなるという意味ではない。どのdata sourceを読ませるか、どのtoolへ書き込み権限を与えるか、どこで人へ承認を求めるか、何を成功と判定するかはapplication側が設計する。harnessは実行の仕組みを提供するが、誤ったtool権限や曖昧な完了条件を補正してくれる保証はない。",
+        "sessionのstatusにも注意が必要だ。公式quickstartは、turn.completedでもすべてのtoolが成功した保証にはならず、session.idleだけでも成功を意味しないと説明する。productionでは最終messageだけでなく、event、tool result、生成artifact、domain側のacceptance checkを保存して判定する必要がある。"
+      ],
+      "bullets": [
+        "service側：session、turn、item、context compaction、回復、managed orchestration",
+        "選択可能：OpenAI-hosted sandbox、self-hosted sandbox、sandboxなし",
+        "application側：tool権限、業務data、承認境界、成功条件、成果物の検証",
+        "監視側：completed、failed、cancelled、action requiredをevent単位で扱う"
+      ]
+    },
+    {
+      "heading": "誰に影響するか：agent infrastructureを自作しているteam",
+      "paragraphs": [
+        "直接影響が大きいのは、長時間agentのためにqueue、state store、context要約、worker再接続、sandbox provisioningを自作しているteamだ。managed harnessへ寄せられる部分が増えれば、業務固有のtool、evaluation、UIへ時間を使いやすくなる。coding assistantだけでなく、alert調査、document review、data analysis、issue reproductionのように、証拠と成果物を残すworkflowも候補になる。",
+        "一方、すでに独自runtimeが安定し、data localityやdeployment topologyを厳格に管理しているteamは、管理範囲を減らす利点とplatform制約を比較する必要がある。特にZDRが必須、米国外のdata residencyが必須、beta APIをproductionへ持ち込めない場合は、現時点で採用条件を満たさない。self-hosted sandboxを選んでもAgents API自体がZDR対象になるわけではない。",
+        "個人開発でも試せるが、『agentだから使う』のではなく、途中状態を保存して再開する価値があるかで判断したい。短い質問応答へsessionとsandboxを付けると、architectureと費用を増やすだけになり得る。"
+      ]
+    },
+    {
+      "heading": "今できること：小さなsessionでeventまで確認する",
+      "paragraphs": [
+        "試す場合は、OpenAI Platform projectでapplication API keyを作成し、session操作用のapi.agents.readとapi.agents.write、model inference用のapi.responses.writeを付与する。SDKはbeta.agents namespaceを使用し、cURLではOpenAI-Beta: agents=v1 headerが必要だ。API keyはagentのsandbox内へ置かず、application側で保持する。",
+        "下のJavaScriptは公式quickstartを基にした最小構成で、OpenAI-hosted sandboxへtree.pyを作らせ、実行eventをstreamする。この記事の調査ではcredentialと課金を伴うlive executionは行っていないため、実行済みsampleではない。試す場合は使い捨てprojectと低いspend limitを用い、event内のagent.session.turn.completedだけでなく、実行結果と生成fileも確認する。",
+        "評価taskは、成功を自動判定できるものがよい。例えば固定fixtureからreportを作り、schema、必須field、source link、exit statusをtestする。自由回答だけを見て『うまく動いた』と判断すると、managed harnessの効果とmodelの文章品質を分けられない。"
+      ],
+      "code": {
+        "label": "公式quickstartを基にした最小例（編集部では未実行）",
+        "language": "javascript",
+        "value": "import OpenAI from \"openai\";\n\nconst client = new OpenAI();\nconst events = await client.beta.agents.sessions.create({\n  agent: {\n    model: \"gpt-6-astra\",\n    instructions: \"Write clean code, run it, and report the actual output.\",\n  },\n  environment: { type: \"openai_hosted\" },\n  input: \"Create tree.py, run it, and report the directory tree.\",\n  stream: true,\n});\n\nfor await (const event of events) {\n  console.log(JSON.stringify(event));\n}"
+      }
+    },
+    {
+      "heading": "費用とdata controlsは、試作前に確認する",
+      "paragraphs": [
+        "Agents APIという名称に独立した定額料金が付くわけではないが、無料という意味でもない。公式overviewによれば、modelは選択したmodelのAPI rate、OpenAI toolは標準rate、OpenAI-hosted sandboxはcontainer rateで課金される。長時間session、subagent、web search、sandboxを組み合わせれば、複数の課金要素が同時に増える。task単位でtoken、tool、container時間を計測し、失敗時のretry上限を設定する必要がある。",
+        "data controlsでは、2026年9月17日時点のAgents APIはdata residencyが米国のみで、Zero Data Retentionをサポートしない。self-hosted sandboxを選んでもこの制約は変わらない。workspaceを自社環境に置けることと、API serviceが保持するsession dataの扱いは別問題だからだ。機密repositoryや顧客dataを使う前に、sessionとartifactの削除、retention、region、組織policyを確認する。"
+      ],
+      "table": {
+        "caption": "導入前に分けて確認する項目",
+        "columns": [
+          "項目",
+          "2026年9月17日時点",
+          "実務上の確認"
+        ],
+        "rows": [
+          [
+            "提供状態",
+            "全開発者向けpublic beta",
+            "beta APIをproductionで許容できるか"
+          ],
+          [
+            "料金",
+            "model、tool、hosted containerの従量課金",
+            "task単価、retry、subagent上限"
+          ],
+          [
+            "Data residency",
+            "米国のみ",
+            "組織と顧客のregion要件"
+          ],
+          [
+            "Zero Data Retention",
+            "非対応",
+            "機密dataを送信できるか"
+          ],
+          [
+            "Environment",
+            "hosted、self-hosted、none",
+            "filesystem、network、secret、cleanup"
+          ]
+        ]
+      }
+    },
+    {
+      "heading": "まだ分からないこと：GAまでの互換性と運用実績",
+      "paragraphs": [
+        "OpenAIはgeneral availabilityの時期、betaからGAまでの互換性保証、将来のdata residency拡大を発表していない。public beta中はfeedbackを基に反復するとしており、header、SDK namespace、resource shape、limitが変わる可能性を前提にするべきだ。beta固有のfieldをapplication全体へ直接広げず、薄いadapterへ閉じ込めると変更へ追従しやすい。",
+        "また、発表ページのcustomer事例は有望だが、各社でtask、model、tool、baseline、評価方法が異なる。『4倍高速』『86%失敗削減』のような個別数値を、自分のworkflowの期待値にはできない。導入判断には、同じfixtureとacceptance testを使い、自前runtime、Agents SDK、Agents APIを同条件で比べる必要がある。",
+        "次に確認する条件は、GA発表、pricingまたはdata controlsの変更、agents=v1以外のversion公開、対応regionの追加だ。いずれかが起きた場合は、この記事のavailability、cost、securityに関する節を再確認する。変化がなくても、production採用前には公式overviewとdata controlsを読み直す。"
+      ]
+    },
+    {
+      "heading": "編集部の見立て：差が付く場所がharnessから運用設計へ移る",
+      "paragraphs": [
+        "ここからは一次情報そのものではなく、編集部のInferenceだ。Agents APIによって、context compaction、session recovery、sandbox接続、subagent orchestrationの標準部品を自作せずに使えるteamが増える。すると競争力は『agent loopを書けること』より、信頼できるtool、業務固有data、権限設計、evaluation、失敗時の人への引き継ぎへ移りやすい。",
+        "managed harnessはagent開発を終わらせるものではなく、責任の位置を変える。serviceがrunを継続できても、間違った請求を止めるpolicyや、曖昧なissueを人へ返す基準は業務側に残る。試作ではquickstartの成功より、権限を狭くした状態で失敗を検出し、sessionを安全に終了・再開・削除できるかを先に確かめたい。",
+        "現時点のRecommendationは、長時間agentをすでに運用しているteamは限定workflowで比較検証を始め、短いmodel callが中心のteamは急いで移行しないことだ。採用の根拠は新しさではなく、自前で抱えているstate管理とrecoveryの負担が実測で減るかどうかに置く。"
+      ]
+    }
+  ],
+  "references": [
+    {
+      "label": "OpenAI — Introducing the Agents API (2026-09-10)",
+      "url": "https://openai.com/index/introducing-the-agents-api/"
+    },
+    {
+      "label": "OpenAI API documentation — Agents API overview",
+      "url": "https://developers.openai.com/api/docs/guides/agents-api/overview"
+    },
+    {
+      "label": "OpenAI API documentation — Agents API quickstart",
+      "url": "https://developers.openai.com/api/docs/guides/agents-api/quickstart"
+    },
+    {
+      "label": "OpenAI API documentation — Compare agent runtime options",
+      "url": "https://developers.openai.com/api/docs/guides/agents#compare-agent-runtimes"
+    },
+    {
+      "label": "OpenAI API documentation — Data controls in the OpenAI platform",
+      "url": "https://developers.openai.com/api/docs/guides/your-data#storage-requirements-and-retention-controls-per-endpoint"
+    }
+  ]
+}

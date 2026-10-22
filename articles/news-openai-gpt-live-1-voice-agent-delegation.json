@@ -1,0 +1,154 @@
+{
+  "slug": "news-openai-gpt-live-1-voice-agent-delegation",
+  "title": "OpenAI GPT-Live 1が登場：音声とbackend agentを分ける設計で何が変わるか",
+  "category": "News",
+  "tags": [
+    "AI / ML",
+    "AI Agents",
+    "Software Engineering",
+    "DevTools"
+  ],
+  "summary": "OpenAIのGPT-Live 1は、会話を続ける音声層と推論・tool実行を担うbackendを分ける。Responses delegationとclient delegationの差、権限とキャンセルの境界、導入前に評価すべき条件を公式資料から整理する。",
+  "publishedAt": "2026-09-22",
+  "updatedAt": "2026-10-22",
+  "checkedAt": "2026-10-22",
+  "readingMinutes": 9,
+  "limitations": [
+    "本稿はOpenAIの公開documentationとAPI referenceの照合であり、API key、microphone、課金を伴うLive session、WebRTC接続、Responses delegation、client delegationは実行していない。",
+    "会話品質、割り込み処理、backend latency、tool成功率、認識精度、network条件ごとの安定性は、公開仕様だけから一般化できない。自組織の言語・回線・taskで測定が必要である。",
+    "提供region、projectごとの利用資格、rate limit、利用規約、data handling、対応SDK・partner integrationの細部は変わり得る。機密dataやproduction toolを接続する前に最新の公式資料と契約条件を確認する必要がある。"
+  ],
+  "sections": [
+    {
+      "heading": "要点：話すmodelと仕事をするbackendを、同じ責任にしない",
+      "paragraphs": [
+        "OpenAIのAPI Changelogは、2026年9月10日にGPT-Live 1のAPI一般提供を記録している。公式documentationでの中心は、音声modelが会話を聞き・話し・必要時にdelegationを決め、別のbackend agentが調査、推論、tool実行、task完了を担う二層構成にある。利用者がbackendの処理を待つ間も会話を続けられるfull-duplexのvoice interfaceとして設計されている。",
+        "ここで重要なのは、音声が自然になったことだけではない。注文変更、社内検索、予約、device操作のように外部状態を変える仕事では、話し方のmodelへ直接『実行権限』を持たせるより、backendのtool、承認、業務record、task stateを別に管理できる。GPT-Live 1はその分離をAPIの基本構造へ置く。",
+        "ただし、会話層とbackendを分けても、誤った実行が自動的に防がれるわけではない。OpenAIのguideは、permission、必要なconfirmation、private functionの実行、task progressの保存をapplicationの責任として明記する。本稿では、発表済みのinterfaceと、導入側が設計・検証すべき境界を分けて読む。"
+      ],
+      "bullets": [
+        "Fact：GPT-Live 1はaudioとtextを入出力に使うfull-duplexの音声modelである",
+        "Fact：推論とtool useは、Responses delegationまたはapplicationが運用するclient delegationのbackendへ渡せる",
+        "Fact：voice sessionは分単位ではなく秒単位で課金され、backend model・tool利用は別課金である",
+        "Recommendation：外部作用のあるvoice agentでは、発話の自然さと実行の正しさを別のacceptance testで確認する"
+      ]
+    },
+    {
+      "heading": "何が起きたか：9月10日のAPI一般提供と、二つのbackend接続方式",
+      "paragraphs": [
+        "API Changelogの2026年9月10日付の記録は、GPT-Live 1のgenerally availableを明記する。model pageではmodel IDを`gpt-live-1`とし、audioとtextのinput／output、streaming、function calling、Live endpointを挙げる。画像とvideoは同ページのmodalitiesでは非対応、structured outputsとfine-tuningも非対応とされる。音声agentに必要なすべてのAPI能力を一つのmodelへ期待しないことが前提だ。",
+        "2026年10月22日訂正：初版はDeveloper Communityの投稿日をAPI導入日として扱っていた。提供開始の根拠をAPI Changelogへ改め、一般提供の日付を9月10日へ訂正した。記事の公開日と製品の提供開始日は別に記録する。",
+        "browser向けの最初の接続はWebRTC guideが案内する。microphoneを使うbrowser、HTTPSまたはlocalhost、そしてOpenAI project API keyを置くtrusted serverが必要で、browserにstandard API keyを置かない。serverがsessionを作成して接続情報を返し、browserは音声media trackとevent用data channelを使う。server-side audioならWebSockets、電話回線ならTelephony／SIPという接続経路も用意されている。",
+        "料金はmodel pageでvoice sessionが1分あたり0.05米ドル、秒単位の請求と示される。これはNumeric factだが、backendのResponses callとtool usageは別に課金される。したがって『0.05ドルで一通話agentが完成する』という価格ではない。会話時間、backend model、検索やfunction、retry、telephony providerなどを分けて見積もる必要がある。"
+      ]
+    },
+    {
+      "heading": "以前との違い：発話の継続と、仕事の実行・検証を別のloopにする",
+      "paragraphs": [
+        "GPT-Liveのguideでは、voice modelは会話を扱い、いつbackendへ助けを求めるかを決める。backendはdelegated taskを推論し、toolを使い、結果を戻す。たとえば利用者が配送状況を質問したあとに補足を話しても、backendが状態照会を続け、GPT-Liveが結果を会話として伝える設計である。これは文字起こしを一度modelへ渡して一回だけ回答を読む、単純な音声入出力とは役割が異なる。",
+        "二つのloopは独立して進む。公式guideは、利用者がassistantの発話をinterruptしてもbackend workは自動cancelされず、applicationが継続またはcancelを決めると説明する。『話すのをやめて』と『予約を取り消して』を同じeventとして扱えば、不要な外部作用や、逆に必要な処理の取りこぼしが起き得る。会話UIのbarge-inと業務commandのcancellationは分けるべきだ。",
+        "また、backendが完了したことと、利用者が正しく聞いたことも別である。Responses delegation guideは、backend responseの完了自体は利用者が答えを聞いた証拠ではないと注意する。重要な変更では、tool result、application databaseの更新、audioまたはtranscriptでの確認、必要なら明示的なuser confirmationを、それぞれ記録して初めて完了と判定したい。後半は編集部のInferenceである。"
+      ],
+      "table": {
+        "caption": "公式documentationから分ける、音声会話と業務実行の責任",
+        "columns": [
+          "層",
+          "GPT-Live 1で担うこと",
+          "applicationが確認・設計すること"
+        ],
+        "rows": [
+          [
+            "会話",
+            "音声を聞き、話し、backendへ渡す必要を判断する",
+            "表示・playback、transcript、利用者への確認UI"
+          ],
+          [
+            "backend",
+            "Responses modelまたはclient側agentへdelegationする",
+            "prompt、context、tool routing、result validation、retry上限"
+          ],
+          [
+            "外部作用",
+            "function callingを利用可能にする",
+            "permission、approval、実行、業務record、idempotency、cancel"
+          ],
+          [
+            "完了判定",
+            "会話とbackend eventを返す",
+            "tool結果、永続状態、利用者通知、監査eventを照合する"
+          ]
+        ]
+      }
+    },
+    {
+      "heading": "二つのdelegation：managedなResponsesか、applicationが握るclientか",
+      "paragraphs": [
+        "Responses delegationでは、GPT-Liveが選択したResponses modelへconversation contextを渡し、backend resultをlive conversationへ戻す。OpenAIは、managedなrequest準備・connection管理・result返却がworkflowに合う場合の出発点として案内する。Responses configurationにはbackend modelが必要で、function定義とweb searchをtoolとして設定できる。custom functionの実行と必要なapprovalは、それでもapplication側の責任に残る。",
+        "client delegationでは、applicationがconversation contextを準備し、既存agent、複数model、社内service、独自workflowを実行して、結果をGPT-Liveへ返す。公式guideによれば、delegation eventにはtask textではなくmetadataが入るため、applicationはtranscript eventと自身のstateを使ってbackend requestを組み立てる。要約の省略や、曖昧な話者識別を放置したままclient delegationへ移すと、backendへ渡す文脈が不足する危険がある。",
+        "選択は『managedだから安全』『clientだから高機能』の二択ではない。backend outputをそのまま会話へ返してよい低リスクの照会ならResponses delegationが小さく始めやすい。個人情報のredaction、複数systemの突合、human checkpoint、budget、fallback、domain-specific validationが必要ならclient delegationで制御点を持つ意味が増える。これは公式の比較表を実務判断へ翻訳した編集部のRecommendationである。"
+      ]
+    },
+    {
+      "heading": "誰に影響するか：会話を入口に、検索や操作をつなぐproduct team",
+      "paragraphs": [
+        "直接の対象は、browser voice assistant、call center、予約・配送案内、field operation、accessibility interfaceのように、音声会話の背後で情報検索やtool実行を行うproduct teamである。すでにLiveKit、Twilio、Telnyx、Daily／Pipecatを使うapplicationにはpartner integration guideもあるが、Realtime integrationがGPT-Liveと自動互換になるわけではないと公式documentationは注意する。audio format、interrupt、session event、backend delegation、call terminationを接続ごとに確認する必要がある。",
+        "一方、単に音声を文字へ変換し、短い定型回答を読み上げるだけのworkflowでは、二層のbackend agentは過剰になり得る。toolがなく、会話履歴も短く、外部状態を変えないなら、より単純なspeech-to-text、text model、text-to-speechの連結のほうが評価と運用を小さく保てる場合がある。GPT-Live 1を使う根拠は『最新の音声modelだから』ではなく、会話中のdelegationとbackend stateを分ける価値があるかで判断したい。",
+        "高影響の操作は特に慎重に扱う。voice biometrics、本人確認、決済、診療・法的助言、緊急通報、physical deviceの制御について、GPT-Live 1の公開資料は自組織のpolicy、法令、domain validationを置き換えない。聞き取りの成功、backendの判断、toolの実行権限、最後のconfirmationを一つの『音声AIの精度』へまとめないことが重要だ。"
+      ]
+    },
+    {
+      "heading": "今できること：発話、delegation、tool結果を同じfixtureで評価する",
+      "paragraphs": [
+        "最初の試験は、実際のcustomer dataやproduction toolを使わないsandboxで行う。たとえば固定の配送fixtureを読み、利用者の三種類の言い直しに対して、GPT-Liveが正しい時点でbackendへdelegationし、backendが正しいrecordだけを読み、返答がそのrecordと一致するかを分けて測る。声が自然でも誤ったrecordを読めば失敗であり、backendが正しくても会話が誤解を招けば失敗である。",
+        "test caseには、通常質問だけでなく、発話interrupt、訂正、曖昧な依頼、backend timeout、tool error、同一操作の重複、処理中のcancelを入れたい。特に『音声を止めた』と『処理を止めた』のstateがどう変わるかをeventと永続recordで確認する。OpenAIはlatency、task success、costを自分のworkloadで比較するよう案内しており、providerのdemoや一般的な声の印象だけからSLAを決めるべきではない。",
+        "認証情報、real customer conversation、課金を伴うAPI callは本稿の調査では使っていない。実装する場合はAPI keyをtrusted serverへ限定し、browserには置かない。さらにtoolごとにleast privilege、明示的approval、idempotency key、timeout、audit log、緊急停止を用意する。これらはGPT-Liveの設定項目だけではなく、voice interfaceが外部systemへ作用するためのapplication designである。"
+      ],
+      "bullets": [
+        "Recommendation：会話品質、delegationの正しさ、backend task success、利用者への伝達、外部状態の更新を別のmetricにする",
+        "Recommendation：cancelとinterruptを、audio UI・backend job・tool execution・永続状態の四つで観測する",
+        "Recommendation：最初はread-onlyのsynthetic fixtureから始め、write toolはhuman approvalとidempotencyを検証してから追加する"
+      ]
+    },
+    {
+      "heading": "まだ分からないこと：実運用の会話品質、遅延、データ境界、利用資格",
+      "paragraphs": [
+        "公開model pageはinput／output modality、endpoint、feature、料金の要点を示すが、日本語を含む個別言語での認識・発話品質、話者の重なり、雑音、長いcall、network変動、地域別telephony、利用者が聞き取れるまでの時間を保証するbenchmarkは本稿の調査で確認できていない。full-duplexやsmooth interruptionはproviderの機能説明であり、特定のphone networkや業務taskでの達成値ではない。",
+        "また、projectごとの利用資格、具体的なrate limit、data retention、transcriptやaudioのhandling、Responses backendへ渡るcontext、partner integrationの費用とsupport範囲は、利用前に最新資料を再確認する必要がある。voice sessionの0.05米ドル／分だけでは、backend token、hosted tool、通信、観測、human reviewの費用を含まない。価格とprivacyを一つのmodel pageだけで承認してはいけない。",
+        "本稿は正式なAPI操作、SDK version固定、WebRTC接続、電話接続、tool executionを検証していない。したがって『GPT-Live 1なら安全に予約変更できる』『Realtime実装をそのまま差し替えられる』『全ての会話をbackendが正しく理解する』とは結論できない。"
+      ]
+    },
+    {
+      "heading": "次に確認する条件：提供条件、pricing、接続・評価guideが更新されたとき",
+      "paragraphs": [
+        "次に確認する条件は、GPT-Live 1のmodel snapshotまたはavailability、pricing、rate limit、data handling、supported tool、SDK、partner integration、Live sessionのcancellation semanticsが更新されたときである。Realtimeまたは既存voice agentからのmigrationを検討するteamは、移行前に公式migration guideの現行条件と、自社のaudio／backend／toolのacceptance testを照合したい。",
+        "今回の結論はシンプルだ。GPT-Live 1の価値は、音声conversationをbackendの仕事と同じloopへ雑に押し込むのでなく、両者を接続しながら責任を分けられる点にある。導入の成否は『どれだけ人らしく話すか』だけでは決まらない。誰がcontextを持ち、誰がtoolを許可し、どの結果を利用者へ話し、どこで処理を止めるかを、会話の外でも検証できるようにすることが重要だ。後半は編集部のInferenceである。"
+      ]
+    }
+  ],
+  "references": [
+    {
+      "label": "OpenAI API Changelog — GPT-Live 1 generally available（2026-09-10、2026-10-22確認）",
+      "url": "https://developers.openai.com/api/docs/changelog"
+    },
+    {
+      "label": "OpenAI Developer Community — Introducing GPT-Live-1 in the API (2026-09-20)",
+      "url": "https://community.openai.com/t/introducing-gpt-live-1-in-the-api/1398321"
+    },
+    {
+      "label": "OpenAI API — GPT-Live 1 model documentation (checked 2026-09-22)",
+      "url": "https://developers.openai.com/api/docs/models/gpt-live-1"
+    },
+    {
+      "label": "OpenAI API — Getting started with GPT-Live (checked 2026-09-22)",
+      "url": "https://developers.openai.com/api/docs/guides/live"
+    },
+    {
+      "label": "OpenAI API — Delegation and tools in GPT-Live (checked 2026-09-22)",
+      "url": "https://developers.openai.com/api/docs/guides/live-delegation"
+    },
+    {
+      "label": "OpenAI API — WebRTC connection guide for GPT-Live (checked 2026-09-22)",
+      "url": "https://developers.openai.com/api/docs/guides/voice-webrtc?api=live"
+    }
+  ]
+}

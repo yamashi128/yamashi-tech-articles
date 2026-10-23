@@ -181,6 +181,11 @@
       "slug": "news-php-critical-rce-october-2026-security-update",
       "path": "articles/news-php-critical-rce-october-2026-security-update.json",
       "sha256": "b54adff601a2813b5e4b597df01dd6258650a30355fc9957e0d687e3769428eb"
+    },
+    {
+      "slug": "news-github-cli-expiring-oauth-tokens",
+      "path": "articles/news-github-cli-expiring-oauth-tokens.json",
+      "sha256": "791f61557274f1578186fe93975d4d1b1f20719d3d87ed637011b1588c4d3002"
     }
   ],
   "assets": [

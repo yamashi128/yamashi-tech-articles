@@ -2,6 +2,7 @@
 
 原稿データから生成した閲覧用Markdownです。修正は対応するJSON原稿へ行います。
 
+- 2026-10-23 / News — [GitHub CLIに期限付きOAuth認証：tokenを使い回すスクリプトは何を見直すべきか](read/news-github-cli-expiring-oauth-tokens.md)
 - 2026-10-22 / News — [PHPの緊急更新：2件のcritical RCEに、runtimeとcontainerをどう直すか](read/news-php-critical-rce-october-2026-security-update.md)
 - 2026-10-21 / News — [OpenAI APIの12時間Prompt Caching：長いcontextを安くする前に、write料金と保持境界を測る](read/news-openai-responses-api-12-hour-prompt-caching.md)
 - 2026-10-20 / Research — [SWE-bench Scienceを読む：公開testを通すだけでは、科学的に正しい修正にならない](read/paper-swe-bench-science-coding-agents.md)

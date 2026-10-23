@@ -34,5 +34,6 @@
   "news-aws-lambda-web-functions-http-servers",
   "news-anthropic-claude-haiku-5-5-cost-boundary",
   "news-openai-responses-api-12-hour-prompt-caching",
-  "news-php-critical-rce-october-2026-security-update"
+  "news-php-critical-rce-october-2026-security-update",
+  "news-github-cli-expiring-oauth-tokens"
 ]

@@ -1,101 +1,70 @@
-# GitHubが公開repoのHTTPS cloneへ一時認証を導入：CIを止めないためにtoken常設より先にretryを設計する
+# GitHub、公開リポジトリの一部のHTTPS取得で一時的に認証を要求。CIは取得経路の確認を
 
 YAMASHI TECH AI Editorial Desk | News | Industry / DevTools / Software Engineering
 
 [掲載ページ](https://yamashi-tech.com/articles/news-github-public-git-https-temporary-authentication) · [原稿データ](../articles/news-github-public-git-https-temporary-authentication.json)
 
-公開: 2026-10-20 / 更新: 2026-10-20 / 確認: 2026-10-20
+公開: 2026-10-20 / 更新: 2026-10-23 / 確認: 2026-10-23
 
-GitHubは異常なtrafficを検知した期間に限り、公開repositoryの一部の未認証HTTPS clone・fetchへ認証を求める場合があると告知した。公開repoが恒久的に非公開化されたわけではなく、CIは短時間retryと最小権限の認証経路を分けて備える必要がある。
+GitHubは2026年10月19日、異常な通信がある期間に、一部の未認証HTTPS clone・fetchへ認証を求める場合があると告知した。公開状態は変わらない。自動ビルドでは認証方法と、保護解除後の再試行を用意する。
 
-## 要点：公開repositoryでも、未認証HTTPSが常に成功する前提は置けなくなった
+## 公開のままでも、cloneやfetchに認証を求められる場合がある
 
-GitHubは2026年10月19日、異常なtrafficが観測された期間に、github.com上の公開repositoryに対する一部の未認証HTTPS cloneまたはfetchへ一時的に認証を求める場合があると告知した。対象になった操作は、認証が必要であることを示すmessageとともに失敗する。これは公開repository全体を恒久的に認証必須へ変える発表ではない。
+GitHubは2026年10月19日、異常な通信からgithub.comの可用性を守るため、一部の公開リポジトリのHTTPS clone・fetchで、一時的に認証を要求する場合があると発表した。対象の操作は、認証が必要だと分かるメッセージを伴って失敗する。
 
-影響が出やすいのは、公開sourceをanonymous cloneできることへ依存したCI、build farm、ephemeral environment、installer、mirrorである。Recommendationとして、最初の対応を長寿命tokenのばらまきにせず、同じcommitを対象にしたbackoff付きretryと、必要時だけ使う最小権限の認証経路へ分けたい。後半は公式仕様を基にした編集部の提案である。
+利用者が取れる方法は二つある。認証して再試行するか、一時的な保護が解除されたあとに未認証で再試行する。公開リポジトリ全体を恒久的に認証必須へ変えるものではない。
 
-- Fact：一時認証の対象は異常trafficに関連するsignalへ合致した一部の未認証HTTPS clone・fetch
-- Fact：認証済みHTTPS、SSH、push、無関係なWeb・API trafficは対象外
-- Inference：匿名取得だけを単一経路にしたbuildは、repositoryの公開状態が変わらなくても停止し得る
-- Recommendation：retryと認証fallbackを別の障害モードとして実装する
+GitHubは適用範囲をできるだけ狭くすると説明している。ただし、正当な通信と異常な通信が同じ特徴を持つ場合には、通常の取得も影響を受けることがある。取得に失敗しても、リポジトリが非公開になったと決めつけず、表示されたエラーを読む必要がある。
 
-## 何が変わったか：publicであることとanonymous transportの可用性を分ける
+## 影響するのは未認証HTTPS。SSHや認証済み取得は対象外
 
-これまでもnetwork障害、rate制御、service incidentでcloneが失敗する可能性はあった。今回の告知は、GitHubがavailabilityを守るため、repositoryのvisibilityをpublicのまま保ちながら、特定の未認証HTTPS requestへauthenticationを要求し得ることを明示した点が新しい。publicは閲覧権限の状態であり、あらゆるtransport requestの無条件成功を意味しない。
+確認したいのは、CI、Dockerfile、初期設定スクリプトなどで公開ソースを未認証のHTTPS経由で取得している箇所だ。毎回ソースを取り直すビルドでは、一つの取得失敗が後の処理を止める。
 
-GitHubは、正当なtrafficと異常trafficが同じsignalを共有する場合があり、legitimateな未認証操作も影響を受け得ると説明する。一方で、適用は可能な限り狭くするとしている。これはfailureが利用者の不正を確定するという意味ではなく、service側の防御判定へ巻き込まれた可能性も含む。
+今回の保護はgithub.com上の公開リポジトリに全プラン共通で適用される。認証済みのHTTPS操作、SSH、push、無関係なWeb・API通信は対象外だ。GitHub Enterprise Serverやパッケージレジストリへ同じ変更が入るという告知ではない。
 
-公式発表が区別する操作経路
+今回の一時保護が影響する取得方法
 
-| 操作 | 一時認証の影響 | 運用上の読み方 |
-| --- | --- | --- |
-| 未認証HTTPS clone／fetch | 一部が一時的に失敗し得る | retryまたは認証fallbackを用意 |
-| 認証済みHTTPS | 今回の保護の対象外 | token失効や権限不足は別途起こり得る |
-| SSH | 今回の保護の対象外 | SSH keyとhost keyの管理は別に必要 |
-| push | 対象外 | write権限とbranch policyは従来どおり |
-| Web／API traffic | 無関係なtrafficは対象外 | Git操作の告知をAPI全体へ一般化しない |
+| 操作 | 今回の扱い |
+| --- | --- |
+| 未認証HTTPSのclone・fetch | 一部で一時的に認証を要求 |
+| 認証済みHTTPSのGit操作 | 対象外 |
+| SSHのGit操作・push | 対象外 |
+| 無関係なGitHub Web・API通信 | 対象外 |
 
-## 誰に影響するか：外部dependencyを毎回cloneする自動処理
+## CIの認証は、ActionsのトークンかGitHub Appから選ぶ
 
-container buildやCI jobが、同じ公開repositoryを毎回anonymous HTTPS cloneする構成は影響候補になる。特に多数のrunnerが同じegress IPを共有する環境、cacheを持たない短命runner、recursive submodule、source installを繰り返すpipelineでは、一つのfailureが後続jobへ連鎖する可能性がある。ただしGitHubは具体的な判定条件を公開しておらず、これらが必ず対象になるとは言えない。
+自動取得を安定させるため、GitHubはGitHub Actionsでは組み込みのGITHUB_TOKEN、他のCIではGitHub Appのinstallation access tokenを推奨している。personal access tokenも利用できる。
 
-開発者の手元でも起こり得るが、公式発表が強調する対応先はautomationである。GitHub Actionsでは組み込みの`GITHUB_TOKEN`、その他のCIではGitHub App installation access tokenが推奨され、personal access tokenも選択肢として挙げられる。どのtokenでも、必要なrepositoryとread権限へ絞る必要がある。
+GITHUB_TOKENはジョブごとに発行され、権限はそのワークフローがあるリポジトリに限定される。別リポジトリの取得まで同じ権限で扱えるとは限らないため、取得先と認証主体を対応させる。
 
-## retryを先に置く理由：一時的な制御へ恒久credentialだけで答えない
+GitHub Appのinstallation access tokenは、インストール先の範囲内でリポジトリと権限を絞れ、有効期間は1時間だ。取得だけなら読み取り権限を使い、トークンをremote URLやログへ残さない渡し方にする。自動化で既に使っている認証の仕組みがあれば、その権限と対象を確認するところから始められる。
 
-認証できない処理について、GitHubは一時保護が解除された後に再試行できると説明する。したがって、同じcommitやtagを対象に、上限回数、指数backoff、jitter、total deadlineを持つretryは第一の回復手段になる。branch先端を毎回取り直すと、再試行の間に別commitへ変わり得るため、再現可能性を重視するbuildではimmutableなcommitを使いたい。
+## 再試行は同じソースへ戻し、回数と待ち時間に上限を設ける
 
-一方、無制限retryは異常trafficを増やし、自分のqueueも詰まらせる。errorをauthentication required、DNS、TLS、not found、permission deniedへ分類し、同じ失敗を一定回数で止める。mirrorやartifact cacheを使う場合も、いつ、どのcommitから作ったかを記録し、古いsourceを最新として配らない。
+認証できない処理は、保護が解除されてから再試行する。GitHubは保護の適用時間や推奨の再試行間隔を示していないため、すぐ何度も取得を繰り返す実装は避ける。下の例は、試行回数と合計時間に上限を置く設計案だ。
 
-anonymous取得を無限反復しない概念例
+ビルドの再現性が必要なら、再試行でも同じcommitを取得する。ブランチの先端を取り直すと、待っている間に別の変更が含まれることがある。キャッシュを使う場合も、どのcommitのソースかを残しておけば、取得方法が変わっても内容を照合できる。
+
+最初の対応は、未認証の取得箇所、取得先、認証の有無、失敗時の動作を一度並べることだ。認証が必要というエラーと、DNSや権限不足などの別の失敗を分けて記録すると、止まったビルドを復旧しやすくなる。
+
+再試行の設計例。GitHubが指定した回数・間隔ではなく、編集部の案。未実行。
 
 ```text
 target = immutable_commit
 attempts = 3
 retry = exponential_backoff_with_jitter
-fallback = authenticated_read_only_clone
+fallback = authenticated_read_only_clone_if_configured
 stop = deadline or unexpected_error
 record = commit, transport, attempts, final_status
 ```
 
-## 認証fallback：人のtokenではなく、jobに合う短命identityを選ぶ
-
-GitHub Actionsの`GITHUB_TOKEN`はjob開始時に発行され、基本的にそのworkflow repositoryへ権限が限定される。別repositoryを取得する場合は届かないことがある。GitHub App installation tokenはrepositoryとpermissionを絞れ、通常1時間で失効するため、複数repositoryを扱う自動処理の候補になる。これはtokenを安全に表示してよいという意味ではない。
-
-personal access tokenは利用者identityへ結び付くため、退職、権限変更、rotation、漏えい時の影響を考える必要がある。remote URLへtokenを埋め込まず、command引数やlogにも出さない。credential helperやCI secret injectionを使い、job終了後に残らない経路を選ぶ。fallbackのためだけにwrite権限を付ける必要はない。
-
-## 今できること：anonymous cloneの棚卸しとfailure testを分けて行う
-
-まずCI定義、Dockerfile、bootstrap script、submodule、language packageのsource dependencyを検索し、`https://github.com/...git`を直接取得する箇所を一覧にする。次に、対象をcommit、tag、branchのどれで固定しているか、cacheがあるか、失敗時に何回再試行するか、credentialが必要なfallbackを誰が管理するかを記録する。
-
-failure testではGitHubへ大量requestを送らず、clone commandのwrapperがauthentication-required相当のexitを受けたときに、retry上限、secret mask、fallback、最終errorを正しく扱うかをstubで確かめる。本稿ではGitHubの防御を意図的に発火させる試験を行っていないし、行うべきでもない。
-
-- anonymous HTTPS取得をrepositoryとjob単位で棚卸しする
-- branch名ではなくcommit SHAで再試行対象を固定する
-- tokenはread-only、対象repository限定、短命を優先する
-- fallback failureを通常のnetwork retryと同じ文字列判定だけで処理しない
-
-## まだ分からないこと：判定signalと適用時間は公開されていない
-
-GitHubは異常trafficの判定方法、threshold、地域、ASN、egress IP、repository popularity、request rateがどう影響するかを公開していない。したがって、特定の回数以下なら安全、特定cloudなら対象外、といったruleはこの記事から作れない。計測するなら自分のjob失敗率とerror分類を観測し、GitHub全体の挙動と混同しない。
-
-また、認証済み経路が今回の制御対象外でも、service incident、token発行失敗、rate limit、permission policy、organization SSOにより止まる可能性はある。認証を付けた結果をavailability保証として扱わず、cache、mirror、retry、artifact provenanceを含む複数の回復手段を設計する必要がある。
-
-## 次に確認する条件：error contractと適用範囲が具体化されたとき
-
-次の確認条件は、GitHubが対象操作、error message、retry guidance、rate条件、GitHub Enterpriseへの適用、認証方式の推奨を更新したときである。実運用では、初めて該当errorを観測したときにも、status pageと公式Changelogを照合し、repository削除や権限変更を同じ原因と決めつけない。
-
-現時点の結論は、公開repositoryのanonymous cloneを禁止されたと読むのではなく、一時的に認証を要求されても安全に止まり、同じsourceへ戻れるpipelineを作ることだ。credential追加は一つの手段であり、retry、固定commit、最小権限、secret非表示と組み合わせて初めて運用になる。
-
 ## 制約と未検証範囲
 
-- 本稿はGitHubが2026年10月19日に公開したChangelogとGitHub Docsを照合した資料調査である。異常trafficの発生、未認証cloneの失敗、GitHub Actions、GitHub App、personal access token、credential helperを使うlive testは行っていない。
-- GitHubは判定signal、適用時間、対象IP・network・repository、retry間隔、rate、具体的なerror全文を公開していない。どのjobがいつ対象になるか、本稿から予測することはできない。
-- 認証を追加すればavailabilityが必ず改善するとは限らず、token、GitHub App、runner、network、upstream dependencyにも別の障害があり得る。credentialを常設することは新しい漏えい・権限管理riskを増やす。
-- この変更はgithub.com上の公開repositoryに関する告知であり、GitHub Enterprise Server、他host、package registry、GitHub APIへそのまま一般化できない。
+- 2026年10月19日の公式告知と、10月23日確認のGitHub Docsに基づく。防御を発火させる試験、トークン発行、認証済みclone、CIの実行は行っていない。
+- GitHubは具体的な判定条件、適用時間、再試行間隔を公表していない。掲載した再試行の値は設計例。
 
 ## 確認したもの
 
-- [GitHub Changelog — Some Git over HTTPS may temporarily require authentication (2026-10-19)](https://github.blog/changelog/2026-10-19-some-git-over-https-may-temporarily-require-authentication/)
-- [GitHub Docs — GITHUB_TOKEN (checked 2026-10-20)](https://docs.github.com/en/actions/concepts/security/github_token)
-- [GitHub Docs — Generating an installation access token for a GitHub App (checked 2026-10-20)](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)
+- [GitHub Changelog：一時認証の対象と対処（2026年10月19日）](https://github.blog/changelog/2026-10-19-some-git-over-https-may-temporarily-require-authentication/)
+- [GitHub Docs：GITHUB_TOKENの発行とリポジトリの権限範囲](https://docs.github.com/en/actions/concepts/security/github_token)
+- [GitHub Docs：installation access tokenの権限と1時間の有効期間](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)

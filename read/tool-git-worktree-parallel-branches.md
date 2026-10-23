@@ -1,59 +1,40 @@
-# git worktree入門：作業中の変更をstashせず、別branchを安全に並べる
+# git worktree入門：作業を残したまま、別ブランチの仕事場を作る
 
 YAMASHI TECH AI Editorial Desk | Deep Dive | DevTools / Software Engineering
 
 [掲載ページ](https://yamashi-tech.com/articles/tool-git-worktree-parallel-branches) · [原稿データ](../articles/tool-git-worktree-parallel-branches.json)
 
-公開: 2026-10-20 / 更新: 2026-10-20 / 確認: 2026-10-20
+公開: 2026-10-20 / 更新: 2026-10-23 / 確認: 2026-10-23
 
-git worktreeは一つのrepositoryへ複数のworking treeを関連付け、branchごとに別directoryで作業できる。使い捨てrepositoryで追加・一覧・独立commit・removeを確認し、並列作業で共有されるrefと分離されるfileを整理した。
+git worktreeは一つのリポジトリから、別ブランチの作業ディレクトリを増やす機能だ。緊急修正や並行レビューのための追加・確認・片付けを示し、共有されるGit情報と分離すべき実行環境を説明する。
 
-## 結論：stashの代替ではなく、branchごとに仕事場を分ける道具
+## 途中の変更をそのまま残して、緊急修正へ着手できる
 
-`git worktree`は、一つのGit repositoryへ複数のworking treeを関連付け、異なるbranchを別directoryへ同時にcheckoutする機能だ。長いrefactorの途中で緊急fixへ切り替えるとき、未commit変更をstashして同じdirectoryを入れ替えず、現在の作業をそのまま残して別のcleanなtreeを作れる。
+長い改修の途中で別の不具合を直すとき、`git worktree`なら現在のファイルを動かさず、別ディレクトリへ別ブランチを展開できる。未commitの変更をstashしてから同じ場所を切り替える手順を減らし、二つの作業を並べて持てる。
 
-AI agentや複数人のlocal pairingでも便利だが、worktreeを作れば自動的に安全に並列化できるわけではない。同じbranchは通常複数worktreeへcheckoutできず、refs、remote、object databaseは共有される。担当file、base commit、merge順、外部resourceを先に分ける必要がある。
+新しいcloneを丸ごと増やす場合と違い、commitを保存するobject databaseは同じリポジトリのものを使う。手元で作ったcommitを互いに参照しやすい一方、ブランチやremoteなど共有される状態もある。ここを理解すると、並行作業の準備と片付けを見通せる。
 
-- 向く：緊急fix、review用checkout、独立した複数branch、agentごとの作業directory
-- 向かない：同じfile・同じbranchを同時編集、submodule多用、shared databaseやportを分離できない作業
-- Verified observation：Git 2.49.0で二つのworktreeが別HEADとbranchを持つことを確認
-- Recommendation：削除はfilesystem操作ではなく`git worktree remove`を使う
+## ファイル・HEAD・indexは別、commitと多くのrefsは共有
 
-## 仕組み：working treeは増えるが、repositoryは複製しない
+`git worktree add`で追加するlinked worktreeには、別の作業ファイル、HEAD、indexがある。HEADは現在のcommit、indexは次のcommitへ入れる内容を表す。元のworktreeで変更中のファイルを、そのまま別の作業で上書きせずに済む。
 
-通常のcloneには一つのmain working treeがある。`git worktree add`はlinked worktreeを追加し、main repositoryのadministrative areaへmetadataを保存する。各worktreeは自分のHEADとindexを持ち、checked-out fileも別になる。一方、commit object、branch ref、remote設定など多くのrepository dataは共有される。
+一方、commit objectや多くのbranch ref、tag、remote-tracking refは共有する。通常のcloneを二つ持つ場合よりGitの情報が密接につながる構成だ。Gitは原則として、一つのブランチを複数のworktreeへ同時にcheckoutさせない。並行する作業ごとに別ブランチを使う。
 
-cloneを丸ごと増やす方法と比べ、同じobjectを再downloadせず、local branchやcommitをすぐ共有できる。反面、一方のworktreeでbranch refを進めると、別のworktreeからもそのrefの新しい位置が見える。directoryが別だからrepository stateも完全に独立している、とは考えない。
-
-clone、branch切替、worktreeの違い
-
-| 方法 | fileの分離 | Git object／ref | 向く場面 |
-| --- | --- | --- | --- |
-| 同じtreeでbranch切替 | 一つだけ | 共有 | 順番に作業できる |
-| 別clone | 分離 | 原則別repository | 強めに独立させたい |
-| linked worktree | 分離 | 同じrepositoryで共有 | 同じhistory上の並列branch |
-
-## 検証環境：使い捨てrepositoryでaddからremoveまで確認した
-
-2026年10月20日、macOS x86_64、Git 2.49.0で`/private/tmp`配下に空の検証directoryを作った。main branchへbaseのempty commitを作成し、`git worktree add -b feature`でlinked worktreeを追加した。feature側で別のempty commitを作り、`git worktree list --porcelain`を実行した。
-
-出力ではmain worktreeのHEADが`f4077b9...`、feature worktreeのHEADが`14f3265...`となり、それぞれ`refs/heads/main`と`refs/heads/feature`へ関連付けられた。続けて`git worktree remove`を実行すると、一覧にはmainだけが残った。これは操作modelの確認であり、実projectの並列build性能を測ったものではない。
-
-| 項目 | 検証値 | 観測 |
+| 項目 | worktreeごと | リポジトリで共有 |
 | --- | --- | --- |
-| OS／architecture | Darwin x86_64 | 一時directoryのみ使用 |
-| Git | 2.49.0 | add／list／remove成功 |
-| main HEAD | f4077b9... | refs/heads/main |
-| feature HEAD | 14f3265... | refs/heads/feature |
-| 終了状態 | exit code 0 | remove後はmainのみ |
+| 作業中のファイル | 別々のディレクトリ | — |
+| HEADとindex | 別々に保持 | — |
+| commit object | — | 同じobject database |
+| ブランチ・tagなど多くのrefs | 一部を除く | 共通の参照先を使う |
+| 実行中のサーバーやDB | Gitは分離しない | 用途ごとに別途設定する |
 
-## 最小チュートリアル：新しいbranchを隣のdirectoryへ作る
+## 新しいブランチを、隣のディレクトリへ追加する
 
-main worktreeで変更中なら、まず`git status --short`を読み、現在の変更を消さないことを確認する。次にrepositoryの外側へ明示的なpathを決め、`git worktree add -b <branch> <path> <start-point>`を実行する。`start-point`を省くと現在のHEADが使われるため、automationでは明示する方が追跡しやすい。
+まず`git status --short`で現在の作業を読み、追加先のパスとブランチ名を決める。下はorigin/mainを起点に修正用ブランチを作る例だ。`git fetch`はremoteへ接続する。取得済みのローカルcommitを起点にする場合は、そのrefやSHAを指定できる。
 
-追加後は新directoryへ移動し、通常どおりedit、test、commitを行う。worktreeのlistはmachine向けなら`--porcelain`を使う。人向けの一行表示をparserで読むより、field単位の安定した出力を使う方がよい。
+`git worktree add -b`では、ブランチ、追加先、起点を順に指定する。起点を省略すると現在のHEADを使うため、作業の再現や自動化では明示すると追いやすい。作成後はそのディレクトリで通常どおり編集・テスト・commitする。一覧を機械処理するなら`--porcelain`を使う。
 
-新branchをlinked worktreeへ作る
+修正用worktreeを追加する例。origin/mainとnpm testを使うプロジェクトを想定。
 
 ```shell
 git status --short
@@ -65,36 +46,37 @@ npm test
 git status --short
 ```
 
-## 同じbranchを二重checkoutできない理由
+## 使い捨てリポジトリでは、HEADを分けて作成・削除できた
 
-Gitは通常、既にあるworktreeでcheckout中のbranchを別worktreeへcheckoutさせない。二つのindexとfile treeが同じbranch refへ別々のcommitを進めると、どちらのworking copyが最新なのか分かりにくくなるためだ。強制optionはあるが、通常運用の解決策として使うべきではない。
+2026年10月20日、macOS x86_64、Git 2.49.0で、一時ディレクトリに検証用リポジトリを作った。mainに空commitを置き、`git worktree add -b feature`で別worktreeを作成した。featureでも空commitを作り、`git worktree list --porcelain`で両方の状態を確認した。
 
-並列taskにはbranchも一つずつ割り当てる。agent Aが`feature/api`、agent Bが`feature/ui`を持ち、共通interfaceを先にcommitしてから分ける。同じfileへ触れるなら、worktreeを増やすよりtaskを直列化するか、ownerを一人に決める方がmerge conflictと意味上の衝突を減らせる。
+mainのHEADは`f4077b9...`、featureは`14f3265...`で、それぞれ`refs/heads/main`と`refs/heads/feature`に対応した。最後に`git worktree remove`を実行すると、一覧にはmainだけが残り、操作は終了コード0で完了した。これは作成・確認・削除の動作確認で、並列ビルドの速度や外部接続の試験ではない。
 
-## 共有されるもの：branch、remote、object、hookの影響を見る
+| 項目 | 検証値 | 観測 |
+| --- | --- | --- |
+| OS／architecture | Darwin x86_64 | 一時directoryのみ使用 |
+| Git | 2.49.0 | add／list／remove成功 |
+| main HEAD | f4077b9... | refs/heads/main |
+| feature HEAD | 14f3265... | refs/heads/feature |
+| 終了状態 | exit code 0 | remove後はmainのみ |
 
-linked worktreeは同じrepositoryに属するため、一方で作ったcommitは他方から参照できる。branch ref、tag、remote-tracking refも多くが共有される。`git fetch`やbranch deletionなどrepository-wideな操作は、別worktreeの作業へ影響し得る。削除対象branchが他のworktreeでcheckout中ならGitが拒否する場合もある。
+## 並行実行するなら、port・依存・データの置き場も分ける
 
-configurationにはrepository共通とworktree固有の層がある。hookやcredential、large-file cache、commit signingも完全に隔離されるとは限らない。信頼できないcodeを別worktreeで開いてもsandboxにはならないため、実行権限、network、secret、filesystem scopeは別のcontainerやOS isolationで制御する。
+ソースが別でも、開発サーバーが同じportを使えば衝突する。テストが同じDBを書き換えれば結果も干渉する。作業ごとにport、DBやqueueの名前、ビルド成果物のパスを決める。依存のキャッシュを共有することと、`node_modules`などの導入済みツリーを共有することも分けて考える。
 
-## 依存とruntimeを分ける：node_modules、port、databaseはGit管理外
+Git側でも、一方のfetchは共通のremote-tracking refを更新する。hookや認証設定などが完全に独立するわけではない。worktreeは危険なコードを隔離するsandboxではないため、信頼できないコードを実行する場合は、コンテナーやOS側の権限も別に設計する。
 
-source fileが別でも、同じpackage cache、Docker daemon、local database、port、environment variable、cloud accountを使えば衝突する。各worktreeへ`node_modules`を作るのか、package manager cacheだけ共有するのかを決める。build outputがrepository外の共通pathへ出るtoolにも注意が必要だ。
+複数人やagentへ割り当てる場合は、ブランチだけでなく担当ファイルと統合順を決める。同じファイルを同時に変える仕事なら、直列にするか主担当を一人にすると調整しやすい。共通interfaceを先にcommitしてから別々の実装へ進む方法もある。
 
-local serverはportをtaskごとに割り当て、database schemaやqueue topicはprefixを分ける。本番credentialを並列taskへ配らない。worktree directory名をenvironment identityへ流用する場合も、path変更や文字種で壊れないstable IDを別に持つ。
+## 作業を保存してからremoveし、ブランチ削除は別に判断する
 
-- source branchと同じくport、database、artifact pathにもownerを付ける
-- dependency cache共有とinstalled tree共有を分ける
-- production secretをlocal worktree分離の根拠にしない
-- 並列testが同じexternal serviceを書き換えないようにする
+片付ける前に、linked worktree内の`git status --short`で未保存の変更やuntracked fileを確認する。必要なcommitやpatchを残したうえで、元のworktreeから`git worktree remove <path>`を実行する。変更があるため拒否された場合は、中身を確認する。通常の片付けで`--force`を使う必要はない。
 
-## 終了手順：status、commit、merge確認の後にremoveする
+removeしてもブランチは残る。統合済みを確認した後に、必要なら`git branch -d`で削除する。下の`git log main..fix/login-timeout`に必要なcommitが残っていれば、先に統合や保存方法を決める。未mergeのブランチを`-D`で消す操作を、通常のcleanupへ混ぜない。
 
-作業終了時はlinked worktree内で`git status --short`を確認し、必要なcommitやpatchが残っていないことを確認する。次にmain側から`git worktree remove <path>`を使う。untracked fileや変更があるとGitは通常拒否するため、`--force`で押し切る前に内容を確認する。directoryを先に手動削除するとmetadataがprunableとして残る。
+ディレクトリを先に手動削除すると管理情報が残る場合がある。移動したパスには`repair`、普段接続していないディスクのworktreeには`lock --reason`という管理方法もある。
 
-removeはbranchを削除しない。merge済みを確認してから`git branch -d`を使う。未merge branchを`-D`で消すのは別の破壊操作であり、自動cleanupへ入れない。移動diskや一時mount上のworktreeは`lock --reason`、pathが変わった場合は`repair`を検討する。
-
-安全な終了確認
+元のworktreeから行う終了確認の例。ブランチ削除は統合済みを確認してから実行する。
 
 ```shell
 git -C ../repo-fix-login status --short
@@ -104,18 +86,16 @@ git worktree list --porcelain
 git branch -d fix/login-timeout
 ```
 
-## 採用しない方がよい条件と実務導入
+## 緊急修正やレビュー用checkoutから取り入れる
 
-submoduleを多用するsuperproject、同じbranchへ複数toolが直接commitするworkflow、filesystem pathを固定値として持つlegacy build、外部stateを分離できないintegration testでは、worktreeが複雑さを増やすことがある。Git公式documentationもmultiple checkoutでsubmodule supportが不完全と注意する。
+worktreeは、今の変更を保ったまま別の仕事を始めたいときに向く。まず緊急修正やレビュー用のcheckoutを一つ作り、置き場所、命名、依存の導入、port、削除手順を共有すると使い始めやすい。
 
-導入するなら、まず緊急fixかread-only review checkoutの一つから始める。branch命名、worktree置き場、port割当、dependency install、cleanupをteam手順へ書き、`git worktree list --porcelain`で残存treeを定期確認する。便利さはdirectory数ではなく、現在の変更を壊さず別の作業を完了できることで測りたい。
+Git公式資料はsubmoduleを含むsuperprojectの複数checkoutについて、サポートが不完全で推奨しないと注意している。固定パスを前提にした古いビルドや、外部の状態を分けられないテストも、そのまま並行化しない。別の仕事場を作れる利点と、Git情報や実行環境を共有する条件を合わせて使う機能だ。
 
 ## 制約と未検証範囲
 
-- 2026年10月20日にmacOS x86_64、Git 2.49.0の使い捨てrepositoryで`git worktree add -b`、`list --porcelain`、各worktreeのempty commit、`worktree remove`を実行した。remote、push、merge、submodule、LFS、sparse checkout、IDE integration、network filesystemは検証していない。
-- 検証は空commitだけを使い、実projectのdependency install、build artifact、database、port、environment variableが並列作業で衝突するかは確認していない。
-- Git公式documentationはmultiple checkoutとsubmoduleの組合せを不完全として注意している。submoduleを使うsuperprojectへ本稿の手順をそのまま適用しない。
-- worktreeはfilesystemとHEADを分けるが、repositoryの多くのrefsとobject databaseを共有する。権限分離、secret隔離、危険commandのsandboxを提供する機能ではない。
+- 実行結果は2026年10月20日のmacOS x86_64・Git 2.49.0による空commit中心の既存検証。2026年10月23日は公式資料を再確認した。remote、push、merge、submodule、LFS、sparse checkout、IDE連携、network filesystem、実プロジェクトの並行ビルドは試していない。
+- worktreeはGitの作業場所を増やす機能で、権限・secret・外部サービスを隔離する機能ではない。submoduleを使うsuperprojectへの適用は公式の注意事項を参照する。
 
 ## 確認したもの
 

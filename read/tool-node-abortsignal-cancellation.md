@@ -1,29 +1,18 @@
-# Node.jsのAbortSignal設計：timeoutと利用者cancelを一つの終了理由へ潰さない
+# Node.jsのAbortSignal設計：timeoutと利用者のcancelを下位処理へ伝える
 
 YAMASHI TECH AI Editorial Desk | Deep Dive | Software Engineering / TypeScript
 
 [掲載ページ](https://yamashi-tech.com/articles/tool-node-abortsignal-cancellation) · [原稿データ](../articles/tool-node-abortsignal-cancellation.json)
 
-公開: 2026-10-20 / 更新: 2026-10-22 / 確認: 2026-10-22
+公開: 2026-10-20 / 更新: 2026-10-23 / 確認: 2026-10-23
 
-Node.jsのAbortSignal.timeoutとAbortSignal.anyを使い、deadlineと利用者cancelを合成する。Node.js 23.11.0でtimer cancellationを確認し、Promise.raceでは止まらない下位処理、reason伝播、cleanupの設計を整理した。
+Promise.raceで待機を打ち切っても、元の処理は止まらない。AbortSignal.timeoutとanyを使って終了要求を伝え、reasonで理由を区別し、cleanupと書き込みの扱いまで設計する。
 
-## 結論：timeoutは結果を捨てる処理ではなく、下位へ停止を伝えるcontract
+## 待つのをやめるだけでは、実行中の仕事は止まらない
 
-JavaScriptでは`Promise.race`で処理とtimerを競争させれば、呼び出し元を先に返せる。しかし負けたPromiseの処理は自動では止まらない。HTTP request、retry、file read、timerが裏で続けば、resourceを消費し、遅れて書込みを完了し、test終了を妨げることがある。
+`Promise.race`で処理とtimeoutを競争させると、呼び出し元へ先に失敗を返せる。しかし、負けたPromiseが進めている通信やファイル操作まで自動で止まるわけではない。画面にはtimeoutと出ていても、裏でリソースを使い、遅れて書き込みが完了する可能性がある。
 
-`AbortSignal`は、呼び出し元のcancel、deadline、shutdownなどの終了要求を下位APIへ渡す共通contractになる。Node.jsでは`AbortSignal.timeout()`でdeadlineを作り、`AbortSignal.any()`で複数理由を合成できる。重要なのは一つのbooleanへ潰さず、`signal.reason`とerror chainで終了理由を保持することだ。
-
-- Verified observation：Node.js 23.11.0で40ms timeoutがAbortErrorとしてtimerを中断
-- Verified observation：combined signalのreasonはTimeoutError、error.causeにも伝播
-- Fact：AbortSignal.anyは最初にabortしたsignalのreasonを採用
-- Recommendation：API boundaryでsignalを受け取り、下位の対応APIへそのまま渡す
-
-## 背景：Promiseの完了と、処理の停止は別の状態
-
-`Promise.race([work(), timeout()])`でtimeout側がrejectすると、呼び出し元は失敗を受け取る。だが`work()`へ停止方法を渡していなければ、workはevent loop、socket、thread pool、remote service上で進み続ける。画面上はtimeoutでも、side effectが後から発生する可能性がある。
-
-cancel可能なAPIは、開始時に`AbortSignal`を受け取り、既にabort済みなら早期に止まり、実行中のabort eventでresourceを解放し、終了理由を返す。呼び出し元と下位処理が同じsignalを共有することで、timeoutが単なる表示上のerrorからresource lifecycleへ変わる。
+`AbortSignal`は、不要になった仕事へ終了要求を渡すための共通インターフェースだ。Node.jsでは、時間による要求を`AbortSignal.timeout()`で作り、利用者のcancelやshutdownと`AbortSignal.any()`で組み合わせられる。下位APIまでsignalを渡し、停止後の片付けと理由の記録を揃えるのが設計の中心になる。
 
 timeout実装の違い
 
@@ -33,27 +22,13 @@ timeout実装の違い
 | AbortSignal伝播 | 失敗を受け取る | 対応APIは停止を試みる | APIごとのbest effort差 |
 | process強制終了 | 全task停止 | cleanup不能の場合がある | data損失、広すぎる影響 |
 
-## 検証環境：timeoutとuser cancelを合成した
+## callerのsignalと、処理ごとのtimeoutを合成する
 
-2026年10月20日、macOS x86_64、Node.js 23.11.0で、`node:timers/promises`の`setTimeout`へcombined signalを渡した。利用者用`AbortController`と`AbortSignal.timeout(40)`を`AbortSignal.any`で合成し、1000msのtimerを開始した。利用者側はabortしなかった。
+APIの入口で呼び出し元のsignalを受け取り、内部のtimeoutと合成する。下の`loadProfile`は、利用者の終了要求か2秒のtimeoutのどちらかでabortするsignalを作り、fetchへ渡す例だ。caller signalがなければtimeoutだけを使う。
 
-実行結果は`name: AbortError`、`cause: TimeoutError`、`elapsedMs: 40`、`aborted: true`、`reason: TimeoutError`だった。processはexit code 0で完了した。これはNode.js timer APIでの観測であり、database queryや外部HTTP requestが同じ精度で止まることを示さない。
+Node.jsのfetchでは相対パスの基準になるdocumentがないため、アプリケーションが渡したbase URLから絶対URLを作る。プロフィールIDもパスとしてencodeする。この例の2秒は説明用の設定で、実際の値はサービスの要件に合わせる。
 
-| 項目 | 結果 | 意味 |
-| --- | --- | --- |
-| Node.js | 23.11.0 | このversionで実行 |
-| 予定timer | 1000ms | 完了前に中断 |
-| deadline | 40ms | 約40msでabort |
-| caught error | AbortError | 対応APIのreject |
-| signal.reason | TimeoutError | 終了理由を区別可能 |
-
-## 最小実装：caller signalとdeadlineを合成する
-
-service functionはoptionalなcaller signalを受け取り、内部deadlineと合成する。caller signalがなければdeadlineだけを使う。下位の`fetch`、timer、対応するfilesystem APIへ同じsignalを渡す。Node.jsのfetchにはbrowserのdocument基準URLがないため、例ではapplicationが渡すbase URLから絶対URLを作る。catchでは`AbortError`だけでtimeoutと決めつけず、combined signalのreasonを確認する。
-
-public APIでは、timeoutを数値だけで受けるよりsignalも受けると、HTTP request disconnect、application shutdown、user actionを同じcontractへ載せられる。ただしbusiness errorとcancel errorを一つのgeneric errorへ包むと、retry判断やHTTP statusが壊れる。
-
-caller cancelとdeadlineを合成する例
+caller cancelとtimeoutを合成するTypeScript例。編集部では外部HTTPへ実行していない。
 
 ```typescript
 export async function loadProfile(
@@ -73,13 +48,53 @@ export async function loadProfile(
 }
 ```
 
-## reasonを残す：timeout、利用者操作、shutdownを分ける
+## timerでは、1000msの待機を約40msで中断できた
 
-`AbortController.abort(reason)`は任意のreasonをsignalへ保存できる。`AbortSignal.timeout()`はTimeoutErrorをreasonにし、`AbortSignal.any()`は最初にabortしたsignalのreasonを採用する。これにより、利用者がcancelしたのか、system deadlineなのか、server shutdownなのかをlogとmetricで分けられる。
+2026年10月20日、macOS x86_64、Node.js 23.11.0で、`node:timers/promises`のtimerを使って確認した。利用者用の`AbortController`と`AbortSignal.timeout(40)`を合成し、1000msのtimerへ渡した。利用者側からのabortは行わず、timeoutだけを発生させた。
 
-error message文字列だけで分類するとruntimeやlibrary更新で壊れやすい。可能なら`signal.reason`、`error.name`、`error.cause`、operation name、deadlineを構造化して記録する。credential、request body、個人情報はreasonやlogへ入れない。reasonはerror transportであり、secret transportではない。
+記録された結果は、例外の`name`がAbortError、`cause`がTimeoutError、経過時間が40ms、signalの`aborted`がtrue、`reason`がTimeoutErrorだった。processは終了コード0で完了した。これにより、timer APIの中断と、合成signalに残るtimeout理由を区別して読めた。
 
-利用者cancelへ明示的なreasonを付ける
+下は同じ構成を理解するための再現例だ。40msは機能確認用であり、厳密な時刻の保証ではない。event loopやOS schedulingの影響を受けるため、実サービスの応答時間やHTTP・DBの中断精度をこの結果から評価することはできない。
+
+| 項目 | 結果 | 意味 |
+| --- | --- | --- |
+| Node.js | 23.11.0 | このversionで実行 |
+| 予定timer | 1000ms | 完了前に中断 |
+| deadline | 40ms | 約40msでabort |
+| caught error | AbortError | 対応APIのreject |
+| signal.reason | TimeoutError | 終了理由を区別可能 |
+
+timerだけで仕組みを確かめるJavaScript例。過去の観測を基に整理した例で、今回の再実行結果ではない。
+
+```javascript
+import { setTimeout as delay } from 'node:timers/promises';
+
+const caller = new AbortController();
+const signal = AbortSignal.any([caller.signal, AbortSignal.timeout(40)]);
+const started = performance.now();
+
+try {
+  await delay(1_000, undefined, { signal });
+} catch (error) {
+  console.log({
+    name: error.name,
+    cause: error.cause?.name,
+    elapsedMs: Math.round(performance.now() - started),
+    aborted: signal.aborted,
+    reason: signal.reason?.name,
+  });
+}
+```
+
+## reasonを残せば、timeoutと利用者操作を区別できる
+
+`AbortController.abort(reason)`は、終了を求めた理由をsignalへ保存する。`AbortSignal.any()`は、合成に使ったsignalのうち中断を起こしたもののreasonを採用する。timeout、利用者のcancel、shutdownを同じ「失敗」にまとめず、呼び出し元の判断やログへつなげられる。
+
+例外名だけでtimeoutと決めないことも大切だ。先ほどのtimerでは、例外名はAbortErrorでもcauseとsignal.reasonはTimeoutErrorだった。APIによってrejectする例外の形は違うので、使用するライブラリの仕様と、signal自身の状態を合わせて分類する。
+
+下は利用者操作の理由を明示する例だ。ログにはoperation名やtimeout値、理由の種別を残すと調査しやすい。認証情報や個人データをreasonへ詰め込まず、必要な情報だけを記録する。
+
+利用者のcancel理由をsignalへ保存する例。
 
 ```typescript
 const controller = new AbortController();
@@ -91,41 +106,30 @@ if (signal.aborted) {
 }
 ```
 
-## listenerとcleanup：abortは一度でも、参照は残り得る
+## 開始前のabortと、正常終了時のcleanupも扱う
 
-Node.js documentationは、AbortSignalのlistenerへ`{ once: true }`を使うことを推奨する。abort eventは一度だけだが、長寿命objectへlistenerを付けたままにするとclosureとresourceが保持される可能性がある。operationが正常終了した場合もlistenerを外せる構造にする。
+独自の非同期APIを作るなら、最初に`signal.throwIfAborted()`で、すでに終了要求が来ているケースを処理する。実行中はabort listenerでリソースを閉じ、正常終了・異常終了のどちらでもfinallyなどで片付ける。
 
-custom async APIでは、開始前に`signal.throwIfAborted()`を呼び、resource取得後はabort listenerでcloseし、finallyでlistenerとresourceを片付ける。abortと正常完了が競争するため、cleanupをidempotentにする。同じsocketを二回closeして別errorを上書きしない。
+Node.jsの公式資料は、abort listenerに`{ once: true }`を使うことを勧めている。ただしonceはabortされたときにlistenerを外す設定なので、正常完了した場合にも参照が残らないよう解除する。abortと完了が競合しても片付けが壊れないよう、同じリソースを二度処理しても問題のない構造にする。
 
-## best effortの境界：abortはtransaction rollbackではない
+## abortしても、済んだ書き込みは巻き戻らない
 
-Node.jsの`fs.readFile`はsignalで内部bufferingを中断できるが、個々のOS request自体をabortするわけではないとdocumentationにある。`writeFile`もcancelはbest effortで、途中まで書かれる可能性がある。APIがsignalを受け取ることと、side effectが原子的に取り消されることは同じではない。
+Node.jsの`fs.readFile`はsignalで内部のbufferingを中断するが、個々のOS requestを中断するわけではない。`writeFile`のcancelもbest effortで、一部がすでに書かれている場合がある。signalを受け取るAPIであることと、処理を丸ごと取り消せることは違う。
 
-external APIへPOSTした後にabortしても、server側が処理を完了する場合がある。支払い、provisioning、message publishではidempotency key、transaction、status query、compensationを用意する。clientがresponseを待たなくなったことを、operationが存在しない証拠にしない。
+外部APIへ書き込み要求を送った後に通信を中断しても、相手の処理が完了している場合がある。支払いやリソース作成では、idempotency key、結果の再照会、transaction、必要に応じた補償処理を別に設計する。cancel後の再試行を、何も起きなかった前提で行わない。
 
-- read-only処理でもsocketとtimerを解放する
-- write処理はidempotency keyと再照会手段を持つ
-- abort後のlate completionを監査logで追えるようにする
-- cancel failureをretryして二重実行しない
+## 早くrejectするかより、理由と後始末をテストする
 
-## test設計：時刻だけでなく、下位処理が止まったかを見る
+テストでは、正常完了、timeout、利用者のcancel、開始前にabort済み、完了とabortの競合を分ける。rejectした時刻だけでなく、受け取ったreason、listenerの解除、残ったtimerやsocket、遅れて発生するcallbackを見る。
 
-testでは、deadline前の正常完了、deadlineによる中断、caller cancel、開始前abort、下位APIがsignal非対応、abortと完了の同時発生を分ける。単に『50ms以内にrejectした』だけでなく、timer、socket、temporary file、background callbackが残っていないかを観測する。
+時刻へ厳密に依存するテストはCIで不安定になりやすい。制御できるPromiseやfake timerを使って理由とcleanupを確認し、実接続が必要な試験では余裕を持たせる。signalを渡しても無視する下位APIは、専用cancel methodなどの対応が必要になる。
 
-wall clockへ強く依存するtestはCI負荷でflakyになる。fake timerやcontrollable promiseを使い、reasonとcleanup callをassertする。integration testでは余裕のあるdeadlineを使い、production値そのものをmillisecond単位で再現しようとしない。
-
-## 採用条件：signalを端から端まで渡せる経路から始める
-
-AbortSignalは、Node.js built-inとWeb APIをまたぐ共通contractとして有用だが、third-party libraryがsignalを無視すれば途中で切れる。call graphを調べ、fetch、timer、stream、database driver、queue clientのどこまで伝播するかを一覧にする。対応しないAPIには専用cancel methodやconnection closeが必要になる。
-
-導入はHTTP request一つから始め、request disconnectとdeadlineをservice、repository clientまで渡す。metricでtimeoutとuser cancelを分け、late side effectがないことを確認して広げる。成功条件はerrorが早く返ることではなく、不要になった仕事が安全に止まり、理由と残ったside effectを説明できることだ。
+導入するときは、一つのHTTP処理など、入口から下位APIまで追える経路を選ぶ。利用者が待つのをやめた時点から、不要な仕事が止まり、理由と残った副作用が分かるところまでを確認する。これがPromise.raceだけで待機を切る実装との実務上の違いだ。
 
 ## 制約と未検証範囲
 
-- 2026年10月20日にmacOS x86_64、Node.js 23.11.0で`node:timers/promises`、`AbortSignal.timeout(40)`、`AbortSignal.any()`を使う一時的なinline programを実行した。約40msでAbortErrorとなり、combined signalのreasonがTimeoutErrorであることを確認した。
-- HTTP server、database driver、stream、worker_threads、child_process、browser、third-party SDK、production trafficでは検証していない。各APIがAbortSignalをどこまでsupportするかは個別に確認する必要がある。
-- timerの40msは機能確認用で、realtime保証やlatency benchmarkではない。event loop負荷、OS scheduling、suspendで実際の時刻は変動する。
-- cancelはrollbackではない。書込み、external API、filesystem operationが部分的に進んだ場合のcompensation、idempotency、transactionは別に設計する必要がある。
+- 実行結果は2026年10月20日のmacOS x86_64・Node.js 23.11.0によるtimerの既存検証。2026年10月23日は公式資料を再確認した。HTTP server、DB、stream、worker_threads、child_process、browser、外部SDK、本番trafficでは試していない。
+- 40msは機能確認用の設定で、時刻や性能の保証ではない。cancelによる部分的な書き込みや外部処理の補償は、各APIに合わせて設計する。
 
 ## 確認したもの
 

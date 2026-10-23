@@ -1,38 +1,41 @@
-# zizmor入門：GitHub Actionsの危険な書き方を探す
+# zizmor入門：GitHub Actionsの危険な書き方をローカルで見つける
 
 YAMASHI TECH AI Editorial Desk | Deep Dive | DevTools / Security
 
 [掲載ページ](https://yamashi-tech.com/articles/tool-zizmor-github-actions-security) · [原稿データ](../articles/tool-zizmor-github-actions-security.json)
 
-公開: 2026-09-17 / 更新: 2026-09-17 / 確認: 2026-09-17
+公開: 2026-09-17 / 更新: 2026-10-23 / 確認: 2026-10-23
 
-GitHub Actions専用の静的解析zizmorを、危険なsample workflowへoffline実行。template injectionや未固定Actionをどう直し、CIへ入れるかを整理した。
+zizmorはGitHub Actionsに特化した静的解析ツールだ。トークンなしのoffline検査から始め、外部入力の直接展開、ActionのSHA固定、権限設定を具体的に見直す方法を説明する。
 
-## workflowは、権限を持ったprogramとして読む
+## YAMLの文法検査だけでは見えない、Actions固有の問題を探す
 
-GitHub ActionsのYAMLは設定fileに見えるが、token、secret、artifact、release権限を持つcommandを実行するprogramだ。pull_requestのtitleやbranch名のような外部入力をshellへ直接展開すればcode injectionが起きる。第三者Actionの参照がtagだけなら、参照先が変わるsupply-chain riskもある。
+zizmorは、GitHub ActionsのworkflowやAction定義にある危険なパターンを見つけるツールだ。外部入力をシェルへ直接埋め込む記述、強すぎる権限、固定されていないAction参照などを検査する。GitHubトークンを渡さず、手元のファイルをofflineで調べるところから使える。
 
-zizmorはGitHub ActionsのworkflowとAction定義に特化したstatic analysis toolだ。general-purpose YAML linterでは見つけにくい、template injection、過剰permission、credential persistence、unpinned `uses`などをruleとして検出する。local fileをofflineで検査でき、online modeではGitHub APIから追加情報も取得する。
+workflowは設定に見えても、認証情報やリリース権限を使ってコードを実行する。たとえばIssueのタイトルを`run:`へ直接埋め込むと、入力がコマンドの一部になる場合がある。zizmorはこうした、入力データが実行コードへ変わる境目をレビューする助けになる。
 
-## 検査対象はsyntaxではなく、実行時のtrust boundary
+## 最初はトークンを渡さず、検出結果を読む
 
-たとえば`${{ github.event.issue.title }}`を`run:`へ直接書くと、GitHubがYAMLを展開したあとshellが実行する。issue titleへquoteやcommand substitutionを混ぜられると、作者の想定と違うcommandになる可能性がある。zizmorの`template-injection`は、この境界を追跡する。
+導入済みのuvxから実行する例を下に示す。検証時と同じ1.30.1を指定し、`--offline`でネットワーク取得を行わずローカルの定義を検査する。uvx自体はツールがキャッシュにないとパッケージを取得するため、zizmorのoffline指定とツール導入は分けて考える。
 
-`uses: actions/checkout@v4`は読みやすいが、tagが指すcommitは理論上変更できる。`unpinned-uses`は既定で、GitHub公式を含むすべてのActionへfull SHA pinを要求する。厳しすぎる場合はpolicyを設定できるが、例外を入れる前に更新方法と責任者を決める。
+通常の出力なら、findingの最大severityに応じた非0終了をCIで利用できる。JSONは機械処理、SARIFはコードスキャン連携向けだ。ただしSARIF出力時はfindingがあっても通常の11以上の終了コードを使わない。SARIFを生成した処理の成功だけを、問題がなかった証拠にしない。
 
-| 代表rule | 検出するrisk | 主な修正 |
-| --- | --- | --- |
-| template-injection | 外部入力をshell等へ直接展開 | envへ渡し、shell側で変数展開 |
-| unpinned-uses | Action参照先の変更 | full commit SHAへ固定 |
-| artipacked | checkout credentialがartifact等へ混入 | persist-credentials: false |
-| excessive-permissions | 不要に強いGITHUB_TOKEN | job単位で最小permission |
-| dangerous-triggers | fork由来codeと強権限triggerの組み合わせ | eventとcheckout対象を分離 |
+ローカル検査の手順例。初回のuvx実行ではパッケージ取得が生じる。
 
-## 危険なsampleから、offlineで6件を検出した
+```shell
+uvx zizmor==1.30.1 --version
+uvx zizmor==1.30.1 --offline .
 
-2026年9月17日、macOS x86_64の一時directoryでzizmor 1.30.1を`uvx`から実行した。sample workflowには`permissions: write-all`、`actions/checkout@v4`、issue titleの`run:`直接展開を意図的に入れた。tokenを渡さず`zizmor --offline .`を実行した。
+# 機械処理向けの出力
+uvx zizmor==1.30.1 --offline --format json .
+uvx zizmor==1.30.1 --offline --format sarif .github/workflows
+```
 
-結果は6 findingsで、3件は表示上suppressed、unsafe fix候補は2件だった。画面には`artipacked`がmedium、`template-injection`と`unpinned-uses`がhighとして表示され、processはexit code 14で終了した。非0終了するためCI gateに使えるが、既存workflowへ初導入すると大量検出で止まる可能性がある。baselineと修正順を先に決める。
+## 意図的に問題を含めた定義から、6件を検出した
+
+2026年9月17日、macOS x86_64の一時ディレクトリでzizmor 1.30.1を試した。サンプルには`permissions: write-all`、`actions/checkout@v4`、Issueタイトルの直接展開を入れ、トークンを渡さず`zizmor --offline .`を実行した。危険なworkflowをGitHubで実行した試験ではない。
+
+結果は6 findingsで、表示上は3件がsuppressed、unsafe fixの候補は2件だった。見えていた診断は`artipacked`がmedium、`template-injection`と`unpinned-uses`がhigh。終了コードは14で、最大severityがhighだったことに対応する。自動修正をそのまま採用せず、指摘の原因と変更内容を読める状態になった。
 
 | 実測項目 | 結果 | 補足 |
 | --- | --- | --- |
@@ -42,30 +45,13 @@ zizmorはGitHub ActionsのworkflowとAction定義に特化したstatic analysis 
 | visible severity | medium 1 / high 2 | artipacked、template injection、unpinned |
 | exit | 14 | findingありとしてCIで検出可能 |
 
-## 最初はtokenなしのlocal auditから始める
+## 外部入力はenvへ渡し、シェルの変数として扱う
 
-local repositoryは、zizmorへdirectoryまたはfileを渡せば検査できる。tokenがない場合はofflineが基本となり、`--offline`を明示すればnetwork前提を避けられる。まず読み取りだけでfindingを一覧化し、何を直すかreviewする。experimentalなfix機能を最初から全fileへ適用しない。
+`${{ github.event.issue.title }}`のようなGitHub式は、シェル実行前に展開される。これを`run:`本文へ置くと、入力に含まれる記号がスクリプトへ入り込む。修正の基本は、式の値をstepの`env`へ渡し、スクリプト内では引用符付きのシェル変数として扱うことだ。
 
-remote repositoryを直接検査するmodeもあるが、再現性が必要ならcommit SHAを指定する。branch名だけでは検査中に対象が動く。GitHub tokenを渡す場合はread-onlyの最小scopeにし、command historyやCI logへ露出しない。
+下の例はタイトルに「: 」が含まれるかをBashで検査する。`run:`内を`${{ env.ISSUE_TITLE }}`にしてしまうと再びテンプレート展開になるため、`${ISSUE_TITLE}`を使う。値を後から`eval`へ渡す処理や、ファイルパスとして扱う場合の検査は別途必要だ。
 
-local workflowをoffline検査
-
-```shell
-uvx zizmor --version
-uvx zizmor --offline .
-
-# machine-readable output
-uvx zizmor --offline --format json .
-uvx zizmor --offline --format sarif .github/workflows
-```
-
-## template injectionは、envを境界にする
-
-GitHub expressionを`run:`のscript本文へ直接展開せず、stepの`env`へ渡す。scriptでは`${ISSUE_TITLE}`のようにshell variableとして参照する。これにより、値はYAML展開でcodeへ埋め込まれず、shellの通常のquoting ruleでdataとして扱える。PowerShellではsyntaxが異なるため、必要ならshellを明示する。
-
-`env`へ置けばどんな使い方も安全になるわけではない。後で`eval`へ渡す、quoteせずcommand引数を組み立てる、file pathとして無検証で使う場合は別のinjectionが起こる。入力の用途に合わせてvalidationとquotingを行う。
-
-issue titleをscriptへ直接展開しない
+Issueイベントを扱うworkflowのsteps内へ置く例。
 
 ```yaml
 - name: Check issue title
@@ -79,44 +65,41 @@ issue titleをscriptへ直接展開しない
     fi
 ```
 
-## SHA pinは、更新automationとセットにする
+## Actionの固定と最小権限を、一緒に見直す
 
-full SHAへ固定すると、tagの移動による意図しないcode変更を防げる。しかし固定したままではsecurity updateも入らない。DependabotやRenovateで新しいSHAをPRにし、release noteとpermission差分をreviewする運用が必要だ。commentへ元tagを残すと、人がversionを読みやすい。
+Actionをタグだけで参照すると、タグが指すコードの変更を受ける。full commit SHAへ固定すると参照先を明確にできる。zizmor 1.20.0以降の`unpinned-uses`は、既定で`actions/*`も含む全ActionのSHA固定を要求する。例外が必要なら設定で定義する。
 
-zizmor 1.20.0以降の既定policyは、`actions/*`を含むすべてのActionへhash pinを要求する。組織policyで公式Actionだけtagを許すこともできるが、例外はzizmor設定へ明示し、口頭ルールにしない。
+SHAを固定した後も、更新用のPRとリリース内容の確認が必要だ。checkoutした認証情報を後工程へ残さない設定、jobに必要なトークン権限だけを与える設定も合わせて読む。下はjob定義の抜粋で、SHA部分は実在する検証済みの40文字へ置き換える。
 
-Action参照とcredentialを明示する
+| 代表rule | 検出するrisk | 主な修正 |
+| --- | --- | --- |
+| template-injection | 外部入力をshell等へ直接展開 | envへ渡し、shell側で変数展開 |
+| unpinned-uses | Action参照先の変更 | full commit SHAへ固定 |
+| artipacked | checkout credentialがartifact等へ混入 | persist-credentials: false |
+| excessive-permissions | 不要に強いGITHUB_TOKEN | job単位で最小permission |
+| dangerous-triggers | fork由来codeと強権限triggerの組み合わせ | eventとcheckout対象を分離 |
+
+job内の設定例。SHAのプレースホルダーは実際の値へ置き換える。
 
 ```yaml
-- uses: actions/checkout@<40-character-commit-sha> # v4
-  with:
-    persist-credentials: false
-
 permissions:
   contents: read
+
+steps:
+  - uses: actions/checkout@<40-character-commit-sha> # 対応するタグもコメントに記録
+    with:
+      persist-credentials: false
 ```
 
-## CI導入は、既存findingと新規findingを分ける
+## 既存の問題を整理し、新しいworkflowで繰り返さない
 
-成熟したrepositoryでは、初回auditのfindingを一日で全修正できないことがある。severityとexploitabilityで優先順位を付け、template injectionや危険なtriggerを先に直す。例外を設定する場合は、理由、対象file、期限、ownerを残す。単にCIをgreenにするためのglobal ignoreは避ける。
+初回の検査では、すぐCIを必須化する前に、指摘を読み、外部入力の注入や危険なtriggerなどから修正する。例外には理由・対象・ownerを残す。既存のfindingと追加されたfindingを区別できるようにすると、導入直後の大量警告へ埋もれにくい。
 
-pull requestではGitHub annotationやSARIFを使うと、該当行へfindingを出せる。CI Action自体もSHA pinし、zizmor versionを固定する。offlineで十分なruleと、online metadataが必要なruleを分けると、fork PRへtokenを渡さずに済む。
-
-## static analysisの限界を理解して使う
-
-zizmorはworkflowの静的な構造を検査する。called workflowの実行時data、外部scriptの中身、自前Actionのbinary、組織secretの設定、GitHub側permissionまですべて保証するものではない。findingが0でも安全証明にはならない。
-
-それでも、Actions固有の危険なpatternをreviewerの記憶だけに頼らず検出できる価値は大きい。導入の完了条件はtoolを置くことではなく、high severityを修正し、例外policyをdocument化し、新しいworkflowで同じriskが増えないことだ。
-
-- tokenなし・offlineで現状を読むところから始める
-- high severityと外部入力のinjectionを優先する
-- SHA pinとdependency update automationを組み合わせる
-- fixはdiffをreviewしてから採用する
-- static analysis、GitHub設定、外部script reviewを併用する
+zizmorはActions固有の静的解析に向き、一般のコード検査やGitHub側の設定確認とは役割が違う。外部スクリプトの全動作や実際のsecret配置は、workflowの定義だけからは分からない。CIへ導入する際はツールの版と実行条件を固定し、必要な診断をローカルのレビューで理解してから自動化するとよい。
 
 ## 制約と未検証範囲
 
-- zizmor 1.30.1を使った使い捨てworkflowで確認し、実在organizationのpolicyやGitHub Actionsの全機能は検証していない。
+- 実行結果は2026年9月17日のmacOS x86_64・zizmor 1.30.1による使い捨て定義のoffline検査。2026年10月23日は公式のruleと終了コードを再確認した。実在組織のworkflow実行、トークンを使う検査、本番設定の監査は行っていない。
 
 ## 確認したもの
 

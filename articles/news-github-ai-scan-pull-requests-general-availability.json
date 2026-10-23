@@ -1,6 +1,6 @@
 {
   "slug": "news-github-ai-scan-pull-requests-general-availability",
-  "title": "GitHub AI ScanがPR向けに一般提供：CodeQLの外側を埋めてもmerge判定は人とrulesetに残る",
+  "title": "GitHub AI Scanが一般提供。PHPやTerraformなどのPRへ、CodeQLを補う指摘を出す",
   "category": "News",
   "tags": [
     "AI / ML",
@@ -8,117 +8,75 @@
     "Software Engineering",
     "Security"
   ],
-  "summary": "GitHubはPR変更を対象にしたAI Scanを一般提供に移した。CodeQLが対象外の言語・frameworkを補完するが、結果はadvisoryでmergeを止められず、forkとDependabotのPRも対象外だ。導入時は検出数だけでなく、対象範囲、AI Credit、reviewと既存policyの役割を先に決める必要がある。",
+  "summary": "GitHubのAI Scanは、CodeQLが対象にしていない言語やフレームワークの変更をPR上で調べる。一般提供後も結果はレビュー用の助言で、自動的にマージを止めない。対象PR、利用条件、AI Creditsの扱いをまとめる。",
   "publishedAt": "2026-10-16",
-  "updatedAt": "2026-10-16",
-  "checkedAt": "2026-10-16",
-  "readingMinutes": 9,
+  "updatedAt": "2026-10-23",
+  "checkedAt": "2026-10-23",
+  "readingMinutes": 4,
   "limitations": [
-    "本稿は2026年10月16日にGitHub ChangelogとGitHub Docsを照合した資料調査である。AI Scanの有効化、課金設定、pull requestの作成、source codeの送信、Copilot Autofix、REST API、GitHub Actions、organizationまたはenterprise設定を使う検証は行っていない。",
-    "GitHubが一般提供と説明する範囲、supported language・detection category、課金・budget・権限の条件は公式資料に限る。precision、recall、false-positive率、検出までの時間、AI Creditの実消費量、既存CodeQLとの重複、各repositoryでの有効性は編集部では測定していない。",
-    "AI Scanのfindingが表示されることは、脆弱性が確定したこと、提案fixが安全であること、merge後のsystemが安全であることを意味しない。threat modeling、依存関係管理、secret管理、review、test、branch protectionとincident responseは別に必要である。",
-    "availability、billing、policy、supported language、detection category、UI、APIは変わり得る。導入前に対象accountの最新documentation、billing画面、enterprise／organization policy、repositoryごとのdata handlingを再確認する必要がある。"
+    "GitHubの発表とガイドを10月23日に照合した記事。有効化、課金設定、ソースコード送信、PR作成、Autofixの実行は行っていない。",
+    "検出精度やクレジット実消費量を編集部では測定していない。AI Scanの指摘には誤検出があり、修正案もレビューとテストが必要になる。",
+    "managed user accountの個人領域は、code scanningが有効でも対象外。"
   ],
   "sections": [
     {
-      "heading": "要点：一般提供になったが、PRのadvisory signalであってmerge gateではない",
+      "heading": "CodeQLの対象外だった変更にも、PR上でセキュリティの指摘を出す",
       "paragraphs": [
-        "GitHubは2026年10月15日、Code scanning AI Scan for pull requestsをgeneral availabilityに移した。AI ScanはCodeQLが現在coverしていない言語・frameworkのPR差分を対象に、追加のsecurity findingを出す機能として説明されている。PHP、Shell/Bash、Terraform configuration（HCL）、Dockerfile、JavaのJSP、C#のBlazorが例として挙げられている。",
-        "ただし、AI Scanのfindingはadvisoryである。公式発表とdocumentationは、code scanning checkをfailさせず、rulesetのmerge requirementとしてPRをblockできないと明記する。『AI Scanをonにすれば危険なPRは自動で止まる』とは読めない。結果を読む人、既存のrequired check、risk acceptance、修正の確認をどこに置くかは、repository側に残る。",
-        "Recommendationとしては、導入可否をmodelの話だけにせず、対象repository、PRの種類、AI Creditの予算、findingのtriage owner、既存CodeQL・secret scanning・reviewとの境界で決めたい。これはGitHubの仕様から導く編集部の提案であり、GitHubが個別teamの安全性を保証したものではない。"
-      ],
-      "bullets": [
-        "Fact：GitHubは2026年10月15日にAI Scan for pull requestsのgeneral availabilityを告知した",
-        "Fact：findingはPRのConversation／Files changedにCodeQL結果と並び、AI indicatorで区別される",
-        "Fact：findingはadvisoryで、code scanning checkやrulesetのmerge requirementをblockしない",
-        "Recommendation：有効化前にbudgetとtriageの責任者を決め、既存のmerge protectionを置き換えない"
+        "GitHubは2026年10月15日、AI Scan for pull requestsを一般提供へ移した。対象は、CodeQLが現在扱っていない言語やフレームワークのPR変更。例としてPHP、Shell/Bash、TerraformのHCL、Dockerfile、JavaのJSP、C#のBlazorを挙げている。",
+        "結果はPRのConversationやFiles changedへCodeQLと並んで表示され、AIの印で区別する。問題の説明や修正方針を読み、利用可能な場合はCopilot Autofixの修正案も確認できる。別のビルド構成を用意せず、これまで対象外だった変更へレビュー材料を増やせるのが利点だ。"
       ]
     },
     {
-      "heading": "何が起きたか：CodeQLの対象外を補うPR差分向けscanが一般提供へ",
+      "heading": "新しいコミットで検査する。フォークとDependabotは対象外",
       "paragraphs": [
-        "GitHubのchangelogによると、AI ScanはCodeQLを置換するのではなくcomplementする位置付けである。公式documentationも、CodeQLの対象外の言語・frameworkを対象に、PR上だけでadditional findingを生成すると説明する。AI Scanのfindingはrepository security viewのbacklog alertにはならない。したがって、default branch全体の在庫を作るscannerではなく、変更が入る瞬間にreviewへ追加signalを出す機能として読む必要がある。",
-        "documentationには、string injection、weak cryptography、broken access control、sensitive data exposure、security misconfiguration、authentication failure、data integrity failure、SSRF、supply chain riskというdetection categoryが列挙される。これはcoverageの公式説明であり、全てのcategoryを検出する保証や、各languageで同じ精度を示すbenchmarkではない。",
-        "findingにはriskの説明と、通常はsuggested remediationが含まれる。利用可能な場合はCopilot Autofixが推奨code changeを出す。しかしsuggested fixの適用、test、review、mergeは別の操作であり、本稿ではautofixの実行や修正の正しさを検証していない。"
+        "リポジトリのcode scanningとAI Scan設定が有効で、対応する変更があるPRを作成したときや、新しいコミットを追加したときに実行する。CodeQLの既定セットアップは必須ではなく、CodeQLの解析が待機中や失敗でも、AI Scanは動く。",
+        "フォークからのPRと、Dependabotが作るPRでは実行しない。またリポジトリ全体を走査する機能ではなく、指摘はPR上にだけ現れ、セキュリティ画面の既存コード向けアラート一覧には蓄積されない。既存のコード全体を棚卸ししたい用途とは、使う場面が異なる。",
+        "指摘は助言扱いで、code scanningのチェックを失敗させず、rulesetのマージ必須条件にも使えない。見つかった問題を誰が確認し、修正が必要ならどのレビュー条件で止めるかは、リポジトリの運用へ組み込む。"
+      ]
+    },
+    {
+      "heading": "公開・非公開と所有者で、利用条件が変わる",
+      "paragraphs": [
+        "組織と個人の公開リポジトリで利用できる。組織の非公開・内部リポジトリにはGitHub Code SecurityまたはGitHub Advanced Securityが必要で、個人の非公開リポジトリは対象外だ。GitHub Copilotのライセンスは利用条件ではない。",
+        "組織では、enterprise側が許可したうえで、組織の所有者やセキュリティ管理者が有効にする。有効化は、code scanningがオンの利用可能なリポジトリへ直ちに適用される。リポジトリ管理者はその後対象から外せるが、設定を見直す前に対象PRが利用量を消費する可能性がある。"
       ],
       "table": {
-        "caption": "AI Scanの公式な動作範囲と、そこからは言えないこと（2026年10月16日確認）",
+        "caption": "公式ガイドが示す、所有者と公開範囲による利用条件",
         "columns": [
-          "項目",
-          "公式資料で確認できること",
-          "そのままは言えないこと"
+          "所有者",
+          "公開範囲",
+          "利用条件"
         ],
         "rows": [
           [
-            "対象",
-            "CodeQLがcoverしていないselected language／frameworkを含むPR変更",
-            "repository全体や過去のdefault branchを網羅scanする"
+            "組織",
+            "公開",
+            "利用可能。アクティブなコミッターのライセンスは不要"
           ],
           [
-            "実行条件",
-            "code scanningとeffective AI Scan settingが有効で、eligibleなPRにqualifying changeがある",
-            "全PRで必ず同じ種類・件数のfindingが出る"
+            "組織",
+            "非公開・内部",
+            "Code SecurityまたはAdvanced Securityが必要"
           ],
           [
-            "表示",
-            "Conversation／Files changedでCodeQLと並び、AI indicatorで識別される",
-            "findingが脆弱性の確定診断になる"
+            "個人",
+            "公開",
+            "利用可能"
           ],
           [
-            "merge",
-            "advisoryであり、checkをfailさせずruleset requirementにも使えない",
-            "AI Scanだけで危険な変更をmerge前に遮断できる"
-          ],
-          [
-            "提案fix",
-            "多くのfindingにremediationを付け、利用可能ならCopilot Autofixを案内する",
-            "提案をそのまま適用すれば安全・正確になる"
+            "個人",
+            "非公開",
+            "対象外"
           ]
         ]
       }
     },
     {
-      "heading": "以前との違い：PR時点の補完scanと、既存のCodeQL・branch protectionは別の層",
+      "heading": "費用と、指摘を読む担当者を決めてから有効にする",
       "paragraphs": [
-        "AI ScanはCodeQL default setupを必要とせず、CodeQL analysisの状態にも依存しない。documentationでは、CodeQLがfailureまたはwaitingでもAI Scanは実行されると説明する。これはCodeQLの実行結果を待つ補助UIではなく、独自のAI-based scanning engineとしてPRへsignalを返す設計を示す。",
-        "一方で、AI Scanがrunするのは、code scanningが有効、repositoryのAI Scan settingが有効、forkでもDependabotでもないPRにCodeQL未対応のsupported language／frameworkの変更がある場合だ。PR作成時と新しいcommitごとに実行されるが、full repository scanはsupportされない。既にmainへ入ったcodeや、対応外のPR経路のriskをこの機能だけで管理するものではない。",
-        "AI Scanはcustom instruction file、たとえば`/.github/copilot-instructions.md`や`/CLAUDE.md`を使わず、specialized promptを使うとGitHubは説明する。repository instructionsで検出基準を自在にprogramできる機能、と期待するのも適切ではない。後半は公式仕様を踏まえた編集部のInferenceである。"
-      ]
-    },
-    {
-      "heading": "誰に影響するか：CodeQL外の変更をPRでreviewする公開・組織repository",
-      "paragraphs": [
-        "availabilityはownerとvisibilityで分かれる。公式documentationでは、organization-owned public repositoryはactive-committer licenseなしで利用可能、organization-owned private／internal repositoryはGitHub Code SecurityまたはGitHub Advanced Securityが必要、personal accountのpublic repositoryは利用可能、personal accountのprivate repositoryは利用不可とされる。managed user accountのpersonal namespaceも対象外である。GitHub Copilot licenseはAI Scanの利用要件ではない。",
-        "privateまたはinternal repositoryでCodeQL外のlanguageやinfrastructure configurationを扱い、PR reviewの追加signalを求めるteamは検討対象になる。ただしforkからのcontributionが多いopen-source project、Dependabot PRのdependency updateを主に見たいteam、default branchのbacklogを一括で棚卸ししたいteamは、AI Scanが対象外とする経路を別のcontrolで補う必要がある。これはRecommendationである。",
-        "organizationではenterprise ownerがpolicyで許可し、organization ownerまたはsecurity managerが有効化する。organization settingが有効ならeligible repositoryに直ちに適用され、repository administratorはopt outできる。public personal repositoryではadminがrepositoryごとにon／offできる。導入が複数repositoryへ広がるため、先にscopeとownerを合意してから設定を変える方がよい。最後の文は編集部のRecommendationである。"
-      ]
-    },
-    {
-      "heading": "今できること：対象経路、予算、reviewを小さく設計して確認する",
-      "paragraphs": [
-        "まずread-onlyで、対象organizationとrepositoryのvisibility、code scanningの有効状態、CodeQLがcoverしていない変更、fork・Dependabot PRの比率、現在のrequired check、security alertのtriage ownerを棚卸しする。これでAI Scanが補完する経路と、補完しない経路を分けられる。source codeやcustomer dataを新たに送る必要はない。",
-        "次にbilling accountのincluded AI Credits、Code Security AI Creditsのbudget、hard budget到達時の扱いを確認する。公式documentationでは、qualifying PRがscanされた時点でusageが始まり、hard budgetでcreditが残っていなければfindingを出せず、budget増額または次のbilling cycleでscanが再開すると説明する。これは費用だけでなく、期待したreview signalが止まる運用条件でもある。",
-        "導入後の評価では、finding数をsecurity improvementと同一視しない。false positiveとしてdismissした割合、reviewに必要な時間、修正の採用・却下理由、既存CodeQLやsecret scanningとの重複、fork／Dependabotなど対象外PRのcoverageを分けて記録する。GitHubのsecurity overviewにはAI Scanのfinding数、autofix suggestionの有無、fix／dismissのoutcomeを示すtabがあるが、これらは自組織のrisk低下を単独で証明する指標ではない。後半は編集部のRecommendationである。"
-      ],
-      "bullets": [
-        "Recommendation：organization全体を有効化する前に、対象repositoryとreviewerを限定し、triageの期限とdismiss基準を決める",
-        "Recommendation：fork・Dependabot・full repository scanの対象外範囲を、既存のCodeQL、dependency review、別scanner、human reviewでどう扱うか明文化する",
-        "Recommendation：autofixの提案はpatchとしてreviewし、test、threat model、branch protectionを省略しない"
-      ]
-    },
-    {
-      "heading": "まだ分からないこと：検出精度、利用量、data handling、個別repositoryでの効果",
-      "paragraphs": [
-        "GitHubはAI Scan findingがfalse positiveを含み得ると明記するが、公開documentationからはlanguage、category、repository規模、PR量ごとのprecision、recall、false negative、latency、AI Credit消費量を確認できない。本稿ではGitHubに実codeを渡す検証も、他toolとの比較もしていない。したがって『AI ScanならCodeQLより多く見つける』『false positiveが少ない』『費用を回収できる』とは結論できない。",
-        "AI Scanがcode searchでrepositoryの追加contextを集め得ること、build systemを必要としないことは公式資料にある。しかし、個別organizationのsource code、pull request metadata、retention、regional processing、access control、contract上のdata handlingがどう適用されるかは、この記事の資料だけで確定できない。private codeを対象にする前に、対象accountの最新termsとsecurity documentationを確認する必要がある。",
-        "また、findingがadvisoryである以上、mergeを止めるべきriskをどのruleset、review、test、approvalへ送るかはteam設計に依存する。AI Scanをonにした事実だけをsecurity postureの改善やcomplianceの達成として扱うことはできない。これは編集部のInferenceである。"
-      ]
-    },
-    {
-      "heading": "次に確認する条件：coverage、billing、policy、data条件が更新されたとき",
-      "paragraphs": [
-        "次の確認条件は、GitHubがsupported language／frameworkまたはdetection categoryを更新したとき、full repository scanやruleset requirementへの対応を追加したとき、fork・Dependabot PRの扱いが変わったとき、AI Creditの課金・budget・availabilityが変わったとき、enterprise policyまたはdata handlingの説明が更新されたときである。導入日にも、changelogだけでなく最新のdocumentationと対象accountの設定を再確認したい。",
-        "現時点の結論は、AI ScanをCodeQL外のPR変更にreview signalを増やす機能として試す価値はあるが、merge gateや独立したsecurity assuranceとしては扱えない、ということだ。対象経路と対象外経路、費用上限、human triage、既存controlを一緒に設計できるteamに向く。この判断は公式の機能境界を基にした編集部のRecommendationである。"
+        "AI ScanはCode Security AI Creditsを消費する。対応するPRを実際に検査した時点から利用量が発生し、利用資格があることと、無料で無制限に検査できることは同じではない。付与されたクレジットを使い切るか、付与がなければ、対象の予算設定に従って従量で扱われる。",
+        "厳格な予算上限で使えるクレジットがなくなると、指摘を出せなくなる。上限を増やすか、次の請求期間が始まると再開する。セキュリティレビューの一部として期待するなら、費用の残量が検査の継続にも関わる。",
+        "導入を判断するには、対象外の言語でどれだけPRを扱うか、フォークやDependabotのPRがどれほどあるか、指摘を確認する担当者がいるかを見ればよい。指摘数だけで評価せず、誤検出だった理由、修正した問題、レビューにかかった時間を残すと、自分たちの開発に役立つ追加検査かを判断しやすくなる。"
       ]
     }
   ],
@@ -128,11 +86,11 @@
       "url": "https://github.blog/changelog/2026-10-15-ai-scan-for-pull-requests-generally-available/"
     },
     {
-      "label": "GitHub Docs — AI Scan for pull requests (checked 2026-10-16)",
+      "label": "GitHub Docs — AI Scan for pull requests (checked 2026-10-23)",
       "url": "https://docs.github.com/en/enterprise-cloud@latest/code-security/concepts/code-scanning/ai-powered-security-detections"
     },
     {
-      "label": "GitHub Docs — Code scanning on pull requests (checked 2026-10-16)",
+      "label": "GitHub Docs — Code scanning on pull requests (checked 2026-10-23)",
       "url": "https://docs.github.com/en/code-security/concepts/code-scanning/code-scanning-on-pull-requests"
     }
   ]

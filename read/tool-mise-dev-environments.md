@@ -1,52 +1,26 @@
-# mise入門：言語のバージョンと開発コマンドを揃える
+# mise入門：Node・Pythonのバージョンと検証コマンドを共有する
 
 YAMASHI TECH AI Editorial Desk | Deep Dive | DevTools / Software Engineering
 
 [掲載ページ](https://yamashi-tech.com/articles/tool-mise-dev-environments) · [原稿データ](../articles/tool-mise-dev-environments.json)
 
-公開: 2026-09-17 / 更新: 2026-09-17 / 確認: 2026-09-17
+公開: 2026-09-17 / 更新: 2026-10-23 / 確認: 2026-10-23
 
-Node、Python、環境変数、taskをmise.tomlへまとめる。隔離環境でNode 24の導入とtask実行を確認し、asdf移行やsecret管理まで整理した。
+mise.tomlへツールのバージョンと開発タスクをまとめると、開発者とCIが同じ入口で作業できる。シェル設定を変えずに試す手順から、asdfとの併用、バージョン固定の考え方まで解説する。
 
-## miseは、開発環境の入口を一つにする
+## 複数言語のセットアップをmise.tomlへまとめる
 
-複数言語のrepositoryでは、Nodeはnvm、Pythonはpyenv、Terraformはtfenv、commandはpackage.jsonとMakefile、環境変数はREADMEというように入口が散らばる。version managerを使っていても、新しいmachineで揃える順番は人の記憶に残りやすい。
+Nodeはnvm、Pythonはpyenv、検証コマンドはREADMEとpackage.json。こうした構成では、新しい開発者が複数の手順を追う必要がある。miseはツールのバージョン、プロジェクトの環境変数、開発タスクを`mise.toml`へまとめ、`mise install`と`mise run check`のような共通の入口を作る。
 
-miseは、tool version、project環境変数、taskを`mise.toml`へ宣言する。asdf compatibleなtool管理に加え、`mise run check`のようなtask runner、machine setup用のbootstrap機能も持つ。すべてを使う必要はなく、最初はversion固定と標準commandだけへ絞ると導入効果を判断しやすい。
+特に役立つのは、複数の言語やツールを使い、環境のずれが起きているプロジェクトだ。最初からマシン全体を管理する必要はない。まず言語バージョンと普段の検証コマンドを一つのファイルへ置けば、導入の効果を確かめやすい。
 
-## nvm・pyenv・asdfとの違いは、対象範囲
+## シェル設定を変えずに、プロジェクトで試す
 
-nvmやpyenvは特定言語へ特化し、asdfはpluginを通じて複数toolを扱う。miseは`.tool-versions`との互換性を持ちつつ、environmentとtaskも同じproject設定へ置ける。READMEに散らばったsetup commandを実行可能な定義へ移せる点が違う。
+`mise exec -- コマンド`は、そのプロジェクトで選んだツールを使ってコマンドを実行する。`mise run タスク名`は設定したタスクを実行する。この二つなら、シェルの初期化ファイルへactivationを追加せずに始められる。日常的に使う段階で、ディレクトリ移動に合わせてPATHを切り替えるactivationを検討するとよい。
 
-一方、設定へ集約しすぎると、秘密やOS固有の副作用までrepositoryから実行される。言語versionと検証taskは共有しやすいが、個人のshell preference、credential、本番操作は分ける。toolchainの宣言とmachine全体の構成管理を一度に始めない。
+下の`mise use`は、Node 24系とPython 3.13系を導入し、設定へ保存する例だ。`24`は一つのpatch版を意味しない。同じ24系でも環境を構築した時期で解決される版が変わり得る。完全に同じ版が必要なプロジェクトでは、patchまで固定し、更新する機会を決める。
 
-| 選択肢 | 主な範囲 | 強み | 注意 |
-| --- | --- | --- | --- |
-| mise | 複数tool・env・task | projectの入口を統一 | 設定とtaskはcodeとしてreviewが必要 |
-| asdf | 複数tool | .tool-versionsとplugin ecosystem | taskやenvは別toolになる |
-| nvm / pyenv | 単一言語 | 用途が明快で既存情報が多い | polyglot repoではmanagerが増える |
-| container | OSを含む実行環境 | 隔離と再現範囲が広い | local UXとbuild costは別評価 |
-
-## 隔離環境で、Node導入とtask実行を確認した
-
-2026年9月17日、macOS x86_64の一時directoryへmise 2026.9.10を配置し、data、cache、config、stateもすべて同じ一時領域へ分離した。`mise use node@24`を実行すると、Node 24.21.0が導入され、`mise.toml`へ`node = "24"`が保存された。
-
-続けて`mise tasks add check -- node --check index.js`でtaskを追加し、`mise run check`が成功した。`mise exec -- node --version`もv24.21.0を返した。これはdownload速度のbenchmarkではなく、shell activationなしで、宣言、install、task、process実行が一つのproject内で完結することを確かめた検証だ。
-
-| 確認項目 | 結果 | 補足 |
-| --- | --- | --- |
-| mise | 2026.9.10 | 公式installerを一時配置 |
-| tool install | Node 24.21.0 | `node = "24"`から解決 |
-| task | node --check index.js 成功 | mise run経由 |
-| shell activation | 使用せず | mise execとmise runのみ |
-
-## 最初はshell activationなしで試す
-
-公式のshell activationを使うと、directory移動時にPATHやenvironmentが切り替わる。便利だが、既存のshell設定と干渉する可能性もある。導入初期は`mise exec -- command`と`mise run task`を使えば、shell profileを変更せず効果を確認できる。
-
-`mise use node@24 python@3.13`はtoolを導入し、projectのmise.tomlへversionを保存する。major指定は将来の24.xや3.13.xへ進む余地を残す。完全に同じpatch versionが必要なら明示的に固定し、更新processを用意する。柔軟な指定と再現性はtradeoffである。
-
-projectへtool versionを宣言する
+mise導入済みのプロジェクトで試す例。ツール取得とmise.tomlの更新を伴う。
 
 ```shell
 cd your-project
@@ -56,13 +30,28 @@ mise exec -- node --version
 mise exec -- python --version
 ```
 
-## taskは、READMEのcommandを実行可能にする
+## Node導入からタスク実行まで、一時環境で確認した
 
-task runnerの利点は短いaliasではない。言語やpackage managerが違っても、projectの検証入口を`mise run check`へ揃えられることだ。個別のlint、test、buildを残し、checkはそれらへ依存させる。失敗時にどのstepか分かり、localとCIが同じ定義を使える。
+2026年9月17日、macOS x86_64の一時ディレクトリへmise 2026.9.10を置き、data、cache、config、stateも一時領域へ分離して試した。`mise use node@24`によって、その時点ではNode 24.21.0が導入され、設定には`node = "24"`が保存された。
 
-taskへ任意のshell commandを書けるため、package.json scriptsやMakefileと同じreview対象になる。cloneした未知のrepositoryで`mise run`する前に定義を読む。自動化は、信頼境界を消すのではなく、実行内容を一箇所へ可視化するものだ。
+`mise tasks add check -- node --check index.js`で構文検査タスクを作ると、`mise run check`は成功した。`mise exec -- node --version`もv24.21.0を返した。シェルactivationを使わず、バージョン宣言・導入・実行がつながったという結果だ。これは過去の導入結果で、現在の24系の最新版を示すものではない。
 
-mise.tomlのproject設定
+| 確認項目 | 結果 | 補足 |
+| --- | --- | --- |
+| mise | 2026.9.10 | 公式installerを一時配置 |
+| tool install | Node 24.21.0 | `node = "24"`から解決 |
+| task | node --check index.js 成功 | mise run経由 |
+| shell activation | 使用せず | mise execとmise runのみ |
+
+## READMEの手順を、名前の付いたタスクにする
+
+下の設定では、`mise run lint`と`mise run test`が既存のnpmスクリプトを呼ぶ。`mise run check`を実行すると、両方が前提タスクとして実行される。Node以外のツールも使うリポジトリで、開発者とCIのコマンド名を揃えられる。
+
+`depends`へ並べた順番は実行順序を表さず、前提タスクは並列で動く場合がある。たとえばbuild成果物をテストが読む場合は、lintとtestを並べる例をそのまま使わず、順序を持つ実行ステップや依存関係を定義する。独立した検査かどうかを先に判断することが大切だ。
+
+タスクは任意のコマンドを実行できるので、設定もコードとして読む。公開してよい環境変数は共有し、APIキーなどの値はCI secretsや承認された管理先から必要なプロセスへ渡す。個人用設定は共有設定と分ける。
+
+独立したlintとtestを束ねるmise.tomlの例。
 
 ```toml
 [tools]
@@ -82,19 +71,28 @@ run = "npm test"
 depends = ["lint", "test"]
 ```
 
-## secretと公開設定を同じ場所へ置かない
+## asdfの設定を残して、段階的に移行できる
 
-miseはenvironment variableや`.env` fileを扱えるが、API keyをmise.tomlへ直接書いてcommitしてはいけない。repositoryには公開可能なdefault、変数名、local setupの説明だけを置く。値はOS keychain、CI secrets、承認済みsecret managerからprocessへ渡す。
+miseは`.tool-versions`を読めるため、asdfから移るときに最初から設定を削除する必要はない。同じバージョンをmiseで導入し、既存のテストとビルドを通してから、タスクや環境変数をmise.tomlへまとめるか判断できる。
 
-`.env`を読む場合はignoreを確認し、sample fileにはdummy値だけを置く。CIでは必要なjobへだけsecretを渡す。miseでenvironmentが自動設定されると、意図しないcommandも同じsecretを継承しやすい。scopeの広いcredentialほど、便利さより漏えい時の影響を優先する。
+`.nvmrc`や`.python-version`など、言語別のバージョンファイルは、読み取りを有効にする設定が別に必要だ。既存のファイルを残す場合は、どれを正しい宣言として扱うかを決める。二つの設定へ異なるバージョンを書く状態は避けたい。
 
-## asdfからは、互換性を使って段階移行する
+nvmやpyenvは単一言語の管理に向き、asdfは複数ツールのバージョン管理に使える。miseはそこへ環境変数とタスクをまとめられる点が違う。一方、OSライブラリまで揃える必要があるなら、コンテナーなどが担う範囲も残る。
 
-miseは`.tool-versions`を読めるため、最初から既存fileを削除する必要はない。まずmise経由で同じversionをinstallし、testとbuildを実行する。次にmise.tomlへ移す理由があるかを判断し、CIとREADMEを切り替えてから旧managerの記述を整理する。
+| 選択肢 | 主に揃えるもの | 選ぶ目安 |
+| --- | --- | --- |
+| mise | 複数ツール・環境変数・タスク | セットアップと実行の入口を統一したい |
+| asdf | 複数ツールのバージョン | 既存の.tool-versionsを活かしたい |
+| nvm / pyenv | 特定言語のバージョン | 一つの言語の管理で十分 |
+| コンテナー | OSを含む実行環境 | OS依存もまとめて再現したい |
 
-pluginごとにversion namingやbuild dependencyが違う場合がある。特に古いruntime、architecture固有binary、社内mirrorは小さな検証が必要だ。『installできた』だけでなく、projectのnative moduleやrelease artifactまで同じ結果になるかを見る。
+## 導入のゴールは、開発者とCIが同じcheckを通せること
 
-移行時の確認順
+移行中は`mise install`、`mise current`で選択された版を確認し、定義したタスクを実行する。lint・test・buildを既存の環境と比較してから、CIとREADMEを切り替える。ツールごとのプラグイン、古いruntime、private registry、architecture固有のバイナリーは、実際のプロジェクトで追加確認する。
+
+miseを入れても、Xcode、Docker daemon、OSライブラリまで同じ状態になるとは限らない。clean checkoutから必要な前提を揃え、同じ成果物を得られるところまでを導入作業に含める。単一のNode版だけを使い、既存の仕組みで困っていないなら、タスク統一の利点が設定追加の負担を上回るかを比べればよい。
+
+lint・test・buildを定義したプロジェクトの移行確認例。
 
 ```shell
 mise install
@@ -105,21 +103,9 @@ mise run build
 git diff -- .tool-versions mise.toml README.md
 ```
 
-## 採用の完了条件
-
-clean checkoutで`mise install`のあと`mise run check`が成功し、既存workflowと同じartifactが得られることを完了条件にする。tool download先が停止した場合のcacheやmirror、CI runnerのarchitecture、OS packageの前提も確認する。Xcode、Docker daemon、system libraryまでmiseだけで揃うとは限らない。
-
-miseが向くのは、複数言語や複数serviceでsetup手順が散らばり、version driftが実害になっているprojectだ。一つのNode versionしか使わず、package managerとcontainerで十分再現できているなら、設定を増やす価値は小さい。困っている分岐だけをmiseへ寄せる。
-
-- 最初はmise execとmise runだけで試す
-- major追従かpatch固定かをprojectで決める
-- taskと設定を実行codeとしてreviewする
-- secretをrepository設定へcommitしない
-- clean checkoutとCIで同じcheckを通す
-
 ## 制約と未検証範囲
 
-- mise 2026.9.10を使った使い捨て環境で確認し、組織全体のmigration、private registry、production CI展開は検証していない。
+- 実行結果は2026年9月17日のmacOS x86_64・mise 2026.9.10での既存検証。2026年10月23日は公式資料を再確認した。組織全体の移行、private registry、本番CIへの展開は試していない。
 
 ## 確認したもの
 

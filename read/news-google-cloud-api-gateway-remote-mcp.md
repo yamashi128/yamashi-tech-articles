@@ -1,93 +1,54 @@
-# Google Cloud API Gatewayがremote MCP serverに対応：REST APIをagent toolに公開する前の認可設計
+# Google Cloud API GatewayがREST APIをMCPツールに。別サーバーを作らずAIから呼び出せる
 
 YAMASHI TECH AI Editorial Desk | News | AI / ML / DevTools / Software Engineering / Security
 
 [掲載ページ](https://yamashi-tech.com/articles/news-google-cloud-api-gateway-remote-mcp) · [原稿データ](../articles/news-google-cloud-api-gateway-remote-mcp.json)
 
-公開: 2026-09-26 / 更新: 2026-10-22 / 確認: 2026-09-26
+公開: 2026-09-26 / 更新: 2026-10-23 / 確認: 2026-10-23
 
-Google Cloud API Gatewayは、OpenAPI 3.xで定義済みのREST operationをremote MCP toolとして公開できるPublic Previewを案内した。追加のMCP middlewareを省ける一方、`tools/list`は既定で未認証、呼び出しは既存REST認可をそのまま継ぐため、global enablementではなく公開operation・認証・write操作を先に棚卸しする必要がある。
+Google Cloud API Gatewayは、既存のOpenAPI 3.x定義からREST APIをMCPツールとして公開するプレビュー機能を提供した。認証・割り当て量・ログを共通化できる仕組みと、ツール一覧の認証、公開する操作の選び方を説明する。
 
-## 要点：REST APIをMCPへ見せ直せる。ただし『既存の認可がある』だけでは公開判断にならない
+## RESTとMCPの変換を、既存のAPI Gatewayへまとめる
 
-Google Cloudは2026年9月24日、API Gatewayをremote Model Context Protocol（MCP）serverとして使い、既存のREST APIをAI agentのtoolとして公開できる機能を案内した。OpenAPI 3.x specificationへGoogle固有の設定を加え、通常のgateway deploymentを行うと、agentはHTTP POSTのMCP endpointで`tools/list`と`tools/call`を使える。別のMCP middlewareを新設してrouting、quota、認可を二重実装しなくてよい、というのが今回の実務上の変化である。
+Googleは2026年9月24日、API GatewayをリモートMCPサーバーとして使う方法を紹介した。MCPは、AIエージェントが使えるツールを見つけ、呼び出すための共通プロトコル。今回の機能では、既存のREST APIをMCPへ変換する別サーバーを運用せず、ゲートウェイに変換を任せられる。
 
-ただし『REST APIをagentに開く』ことと『安全なagent workflowにできた』ことは別だ。tool invocationは元のOpenAPI operationに定義したAPI keyまたはJWTなどの認可を再利用する一方、`tools/list`は既定で未認証である。公開するoperationをglobalに有効化すれば、eligibleなoperationがtoolになり得る。読み取り専用のendpointだけを公開するのか、write APIを誰のidentityで呼ぶのか、tool名と説明から何を推測できるのかを、設定より先に決める必要がある。後半は公式仕様を導入判断へ翻訳した編集部のInferenceである。
+機能の公開自体は、リリースノートの9月11日付Public Previewとして記録されている。対応するOpenAPI 3.x定義へ設定を加えてデプロイすると、通常は/mcpの経路でリクエストを受ける。バックエンドのREST APIを書き直す必要はない。
 
-- Fact：API GatewayはPublic Previewでremote MCP serverとして動作し、OpenAPI 3.xからMCP tool設定を導ける
-- Fact：対応するMCP lifecycleは`initialize`、`notifications/initialized`、`tools/list`、`tools/call`に限られる
-- Fact：`tools/call`は下位REST operationの認可を継承するが、`tools/list`は既定で未認証である
-- Recommendation：初回はread-only operationを明示選択し、JWTでtool discoveryを保護できるか確認してから広げる
+## 注文状況のAPIを、注文番号で呼べるツールにする
 
-## 何が起きたか：API GatewayがOpenAPI 3.xからremote MCP endpointを生成するPublic Preview
+例えば注文状況を返すGET /orders/{orderId}を公開すると、エージェントは注文番号を引数にツールを呼べる。ゲートウェイがMCPのJSON-RPCからRESTのパスや引数へ変換し、バックエンドの結果をMCPの返答へ戻す。既存の操作に設定したAPIキーやJWT認証、割り当て量、ログを同じ処理経路で使う。
 
-発表主体はGoogle Cloudで、Google Developers Blogの案内日は2026年9月24日である。API Gatewayのrelease notesでは、MCPをremote serverとして構成できるPublic Previewを9月11日のfeatureとして記録している。今回のblogは、既存REST backendを変更せず、gatewayに置いたOpenAPI 3.x specificationへMCP設定を加える流れを、agent向けの利用例として説明したものだ。発表日とPreview機能のrelease-note日を同一視しない。
+MCPの有効化にはx-google-api-management.mcpを使い、操作ごとのx-google-mcp-toolで名前や説明を調整できる。説明文はエージェントが呼ぶ場面を決める材料なので、「何を返すか」に加え「いつ使うか」も具体的にする。全体を有効にした場合でも、個々の操作をfalseで除外できる。
 
-protocol上では、agent clientがgatewayの通常`/mcp` pathへJSON-RPC requestをPOSTし、gatewayがMCPのtool requestをpath、parameter、bodyを持つHTTP REST requestへ変換してbackendへ渡す。backend responseは再びJSON-RPC responseになる。path/query parameterとheaderはargumentsのtop-level property、request bodyは`body` propertyから渡すとdocumentationにある。これは公開仕様上のFactであり、本稿では実際のgatewayやbackendへのrequestを送っていない。
+公開できるHTTPメソッドはGET、POST、PUT、PATCH、DELETE。操作にはバックエンドと空でない説明が必要になる。最初は必要な読み取り操作を明示して公開すると、既存の削除・更新APIまで意図せずツールになるのを避けられる。
 
-MCPを有効にしたgatewayをAPI Hubと統合すると、MCP-specific metadata付きでAPI Hubへ公開され、Agent Registryにも自動で現れるとoverviewは説明する。これはagentに見つけやすくなる機能であり、toolの安全性、適切なpermission、正しいagent selectionを証明する評価ではない。catalogに載せる前に、誰がdiscoverでき、誰がcallでき、誰がtool definitionを変更できるかを分けて設計する必要がある。最後の文は編集部のRecommendationである。
+## ツール一覧を見る認証と、実行する認証を分けて設定する
 
-## 以前との違い：MCP用の別serverではなく、既存gatewayのpolicy pathを通せる
+tools/callは、元のREST操作に設定された認証を引き継ぐ。一方、ツール名や入力形式を返すtools/listは、既定では未認証だ。REST側の呼び出しを保護済みでも、ツール一覧まで閉じるには別の設定が必要になる。
 
-従来、REST APIをMCP toolにするには、MCP protocolを受けてRESTへ変換するserverまたはmiddlewareを別途運用する構成が一つの選択肢だった。Googleの発表は、API Gatewayがその変換を担い、既存のOpenAPI、authentication、quota、loggingと同じgateway policy pathを使えると位置付ける。APIとMCPで別々のrouting tableやcredential検査を持つより、policyの分岐を減らせる可能性がある。
+10月23日に確認した設定ガイドでは、tools-list.securityへ一つのJWTまたはAPIキーの方式を指定できる。APIキーの場合はx-api-keyヘッダーで渡し、クエリパラメーターは使えない。初期接続に使うinitializeとnotifications/initializedは未認証のままとなる。
 
-その一方で、gatewayが変換するからといってbackendの意味が変わるわけではない。configuration guideは、transcodeされたbackend requestをdirect REST callと区別できないと説明する。auditでは`/mcp`で終わるrequest pathやcustom metricを用いてMCP trafficを見分けられるが、backend applicationだけに『agent由来だから低権限にする』という判断を任せられない。identity、scope、operationごとのauthorizationをgatewayとbackendの双方でどう検査するかは残る設計課題である。後半は公開仕様からのInferenceである。
+認証された呼び出しでも、利用者がその注文や顧客データを扱ってよいかは別に判定する。OpenAPIに書いたOAuthのscopeはAPI Gateway自体では検査・強制しないと制限ガイドにあるため、業務上の権限はバックエンドなどで適用する必要がある。
 
-またMCPとmodel routingは同じAPI configで併用できない。`x-google-api-management.mcp`を有効にすると、`x-google-model-router`は使えない。既存gatewayでOpenAI-compatibleなmodel routingをすでに使うteamは、MCPを足すだけの差分では済まず、gatewayやAPI configの分離を検討する必要がある。これは公式extension documentationにある仕様で、どちらの構成が適切かはworkloadと運用境界による。
+更新（2026年10月23日）：tools/listはJWTのみとした旧記述を更新した。9月30日のリリースノートでAPIキー認証の追加を確認した。9月24日の紹介ブログは追加前の仕様を説明している。
 
-API GatewayのMCP化で引き継げるものと、別途決めるもの
+## 短い読み取り操作から、実際の利用経路へ合わせる
 
-| 論点 | 公開仕様で確認できること | 導入側で決めること |
-| --- | --- | --- |
-| 公開対象 | OpenAPI 3.xのeligible operationをglobalまたはoperation単位でMCP toolにできる | read-only／write operationの選別、tool名・説明、破壊的操作の除外 |
-| 呼び出し認可 | `tools/call`は下位REST operationのAPI keyまたはJWT policyを再利用する | agentへ渡すidentity、scope、user delegation、approvalと監査 |
-| tool列挙 | `tools/list`は既定で未認証。JWT schemeを一つ指定して保護できる | catalogを見せる対象、JWT発行・失効、未認証列挙を許すか |
-| 運用 | gateway metrics・logsを使え、`/mcp` pathでMCP trafficを区別できる | rate limit、異常検知、cost上限、incident時のtool停止とreview |
+プレビューが対応するのは初期接続とtools/list、tools/callで、resourcesやprompts、stdioには対応しない。ツール数はゲートウェイあたり最大1,000。MCPのストリーミングや長時間の呼び出しは対象外で、同じAPI設定でモデルルーティングを併用することもできない。
 
-## 誰に影響するか：OpenAPIでREST APIを管理し、agentへ段階的にtoolを渡したいteam
+空の本文を返すHTTP 204などの操作、複雑に入れ子になった入力定義にも制約がある。読み取り・破壊的操作を示すツール注釈も出力されない。そのため、エージェント側が注釈から安全に操作を選別してくれると想定せず、公開対象と権限を先に絞る。
 
-もっとも直接的に関係するのは、すでにAPI GatewayとOpenAPI 3.xでinternalまたはpartner向けREST APIを管理しており、agent用に同じcapabilityを公開したいplatform teamである。GET、POST、PUT、PATCH、DELETE operationをtoolにでき、tool nameはoperation IDを既定にしつつoperationごとの`x-google-mcp-tool`でnameとdescriptionを上書きできる。global enablementを選んでも、特定operationを`false`にして除外できる。
-
-逆に、OpenAPI 2.0、stdio transport、MCP resourcesまたはprompts、SSEによるstreaming response、long-running tool callが中心のAPIは、このPreviewの対象に合わない。overviewはresourcesとpromptsを未対応、stdioを未対応、streamingまたは長時間callを未対応と明記する。OpenAPI 3.x limitationsではMCP toolをgateway当たり最大1,000個、HTTP methodをGET／POST／PUT／PATCH／DELETEに限定している。
-
-write APIを持つteamほど、機能を『既存backendを変更しなくてよい』だけで採用しないほうがよい。tool descriptionはagentの行動選択に使われ、`tools/call`はREST callと同じeffectをbackendへ起こす。削除、返金、permission変更、外部送信のようなoperationは、MCP endpointへ出さない、または別identity・narrow scope・approval workflowを持たせる選択を先に検討する。これは一般的なsecurity designとしての編集部のRecommendationである。
-
-## 今できること：一つのread-only operationから仕様と認可を照合する
-
-最初の評価は、syntheticまたは公開sample dataだけを返すread-only operation一つに絞るのがよい。OpenAPI 3.x specificationでoperation ID、summaryまたはdescription、backend、既存REST security requirementを確認し、MCPをglobalで有効にする代わりに`x-google-mcp-tool`で公開対象を明示する。documentationはtool descriptionが空ならconfiguration validationでrejectされるとしているため、説明文を単なる実装メモではなく、agentが誤って広く解釈しない範囲へ整える必要がある。
-
-次に`tools/list`をどう保護するかを決める。JWT security schemeを一つ定義し、`x-google-api-management.mcp.tools-list.security`に指定すれば列挙を認証できる。Public Previewではtool discoveryにAPI keyを使えない。call側のAPI keyが設定済みでも、list側まで同じように閉じるとは限らないので、listとcallを別々にtest planへ入れるべきである。ここでの設定例は公式documentationに基づく説明であり、本稿ではcredentialを設定していない。
-
-評価時には、正常callだけでなく、未認証の`tools/list`、scope不足の`tools/call`、存在しないtool、schemaに合わないargument、backendの4xx／5xx、長時間responseを観測対象にする。MCPではprotocolまたはapplication errorがHTTP 200とJSON-RPC error objectで返る場合があるため、HTTP statusだけを成功判定にしない。production API、customer data、write operation、課金のあるgateway deploymentを使った検証は本稿では行っていない。
-
-- Recommendation：tool exposureはglobal enablementではなく、read-only operationのallowlistから始める
-- Recommendation：`tools/list`と`tools/call`の認可、request path、principal、operation、effectを一つのaudit recordで追えるようにする
-- Recommendation：write operationはMCP化しない選択を含め、idempotency、approval、reversal、rate limitを別途reviewする
-
-## まだ分からないこと：Previewの実運用性能、client互換性、料金、個別projectの提供範囲
-
-公開資料はfeatureのprotocol範囲とconfigurationを説明するが、どのMCP clientが同じhandshake、header、error handling、tool schema renderingで互換かを一覧していない。deeply nested object schemaが`tools/list`で完全にrenderされない場合があること、HTTP 204のようにempty bodyを返すoperationはtoolとして公開されないこともGoogleのblogは制限として挙げる。自組織のagent frameworkでどのschemaが見え、どのerrorをretryし、どのtool descriptionを選ぶかは別途確認が必要である。
-
-また、Public Previewの料金、quota、region、SLO、support、Agent RegistryまたはAPI Hubでのaccess control、既存gatewayとのmigration、MCP trafficによるbackend cost、実際のlatencyは、この記事の照合範囲では確定していない。gateway policyを再利用しても、agentがtoolを何度callするか、paginationをどう扱うか、失敗時にretryするかで総costと負荷は変わる。
-
-MCP化はprompt injectionへの防御そのものではない。tool側で認可があっても、agentが不適切なargumentを選べば、許可された範囲で望ましくない読み出しや変更をする可能性は残る。least privilege、tenant isolation、data minimization、server-side validation、rate limit、human approval、auditをMCP設定の外側にも置く必要がある。最後の段落は編集部のInferenceである。
-
-## 次に確認する条件：GA、対応MCP method、認証方式、model routing併用の仕様が変わったとき
-
-次に確認する条件は、MCP supportのGA、supported MCP methodとtransportの追加、streaming・long-running call・resources・promptsへの対応、`tools/list`の認証方式、OpenAPI 3.x limitation、tool count、model routingとの併用、pricing・quota・region・supportの更新である。Previewである以上、仕様が変わったらOpenAPI configとsecurity reviewを再実施する。
-
-現時点の結論は、API GatewayのMCP対応を『REST APIを安全にagent化するスイッチ』として扱わないことだ。既存gatewayの認可、quota、loggingを同じ経路で使い、MCP用middlewareの重複を減らせるのは具体的な利点である。ただし公開するoperation、discoveryの認証、agent identity、write effect、backend validationは自動では決まらない。read-only toolを狭く公開し、実際のclientと監査記録で評価できるteamに向くPreviewである。後半は編集部のInferenceである。
+この機能が向くのは、OpenAPIで管理するREST APIを、同じ認証・運用経路のままエージェントへ提供したいチームだ。注文状況の取得のような小さな操作で接続とエラー処理を確かめ、更新・削除へ広げる際には承認や取り消しの設計を加える。変換サーバーの運用を減らす利点を、操作ごとの権限設計と一緒に生かせる。
 
 ## 制約と未検証範囲
 
-- 本稿はGoogle Developers Blog、Google Cloud API GatewayのMCP overview・configuration・OpenAPI 3.x limitation・release notesを照合したものである。Google Cloud project、gateway、OpenAPI deployment、Agent Registry、API Hub、OAuth/JWT/API key、MCP client、backend APIを用いた実行・課金・production dataでの検証は行っていない。
-- Public Previewの仕様、対応region、quota、料金、support、Agent Registryでの可視性、MCP clientごとの互換性、observability、backendのdata handling、個別gatewayの利用可否は、公開資料だけでは一般値として確定できない。導入時には対象projectの最新console、契約、security policy、release notesを再確認する必要がある。
-- 既存REST operationの認可を引き継ぐことは、operation自体の権限、tool description、agentの委任範囲、prompt injection、過大なquery、business rule、write後の取り消しを安全にする保証ではない。MCP化をagent securityの完全な境界として扱えない。
+- 公式ブログ、設定ガイド、制限ガイド、リリースノートを10月23日に照合した記事。Google Cloudの設定変更、デプロイ、認証情報の設定、実接続は行っていない。
+- Public Previewの仕様を扱う。MCP対応は元のAPIの業務認可や、エージェントに許す操作を自動で決定するものではない。
 
 ## 確認したもの
 
 - [Google Developers Blog — Turn your REST APIs into MCP tools with Google Cloud API Gateway (2026-09-24)](https://developers.googleblog.com/en/turn-your-rest-apis-into-mcp-tools-with-google-cloud-api-gateway/)
-- [Google Cloud API Gateway — Model Context Protocol overview (Public Preview, checked 2026-09-26)](https://docs.cloud.google.com/api-gateway/docs/mcp-overview)
-- [Google Cloud API Gateway — Configure Model Context Protocol (checked 2026-09-26)](https://docs.cloud.google.com/api-gateway/docs/mcp-configure)
-- [Google Cloud API Gateway — OpenAPI 3.x feature limitations (checked 2026-09-26)](https://docs.cloud.google.com/api-gateway/docs/openapi-v3-limitations)
-- [Google Cloud API Gateway — release notes (MCP Public Preview, checked 2026-09-26)](https://docs.cloud.google.com/api-gateway/docs/release-notes)
+- [Google Cloud API Gateway — Model Context Protocol overview (Public Preview, checked 2026-10-23)](https://docs.cloud.google.com/api-gateway/docs/mcp-overview)
+- [Google Cloud API Gateway — Configure Model Context Protocol (checked 2026-10-23)](https://docs.cloud.google.com/api-gateway/docs/mcp-configure)
+- [Google Cloud API Gateway — OpenAPI 3.x feature limitations (checked 2026-10-23)](https://docs.cloud.google.com/api-gateway/docs/openapi-v3-limitations)
+- [Google Cloud API Gateway — release notes (MCP Public Preview, checked 2026-10-23)](https://docs.cloud.google.com/api-gateway/docs/release-notes)

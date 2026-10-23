@@ -1,58 +1,45 @@
-# GitHubのSSH要件変更が始まった：RSA 3072bitと2027年のssh-rsa廃止に備える
+# GitHubのSSH要件が変更。新規RSA鍵は3072bit以上、SHA-1署名は2027年1月廃止
 
 YAMASHI TECH AI Editorial Desk | News | Security / DevTools / Software Engineering
 
 [掲載ページ](https://yamashi-tech.com/articles/news-github-ssh-security-changes-2026) · [原稿データ](../articles/news-github-ssh-security-changes-2026.json)
 
-公開: 2026-10-20 / 更新: 2026-10-20 / 確認: 2026-10-20
+公開: 2026-10-20 / 更新: 2026-10-23 / 確認: 2026-10-23
 
-GitHubは新規RSA keyを3072bit以上へ制限し、SHA-1を使うssh-rsa署名と古い鍵交換方式を2027年1月に廃止する。既存RSA keyを一律に作り直す話ではなく、keyのbit数、署名algorithm、client capabilityを分けて確認する必要がある。
+GitHubは新規RSA鍵の最小長を3072bitに変更し、SHA-1を使うssh-rsa署名などを2027年1月13日に廃止する。既存RSA鍵はSHA-2署名で使えるため、全交換の前に利用クライアントと署名方式を確認したい。
 
-## 要点：確認すべきはkey種別ではなく、bit数・署名・鍵交換の三つ
+## 11月と12月の一時停止を経て、2027年1月に古い方式を廃止
 
-GitHubはSSH security改善として三つの変更を発表した。2026年10月14日以降にアップロードする新しいRSA keyは3072bit以上が必要になり、同日にpost-quantum hybrid key exchangeの`mlkem768x25519-sha256`を一部を除くgithub.com環境へ追加した。さらにSHA-1を使う`ssh-rsa`署名と`diffie-hellman-group-exchange-sha256`鍵交換を2027年1月13日に削除する予定である。
+GitHubが2026年9月22日に告知したSSHの変更は、鍵の長さ、署名、鍵交換の三つに関わる。10月14日から新しくアップロードするRSA鍵は、認証用・署名用とも3072bit以上が必要になった。
 
-混同しやすいのは、RSA公開鍵typeの名称も`ssh-rsa`である点だ。既存RSA keyでもSHA-2の`rsa-sha2-256`または`rsa-sha2-512`で署名でき、対応clientは通常それを選ぶ。GitHubも、既存RSA keyを一律に再生成する必要はないと説明する。古いclientと明示configurationを先に調べたい。
+次は、SHA-1を使うssh-rsa署名と、diffie-hellman-group-exchange-sha256という鍵交換方式を廃止する。2026年11月4日と12月9日に一時的な停止試験（brownout）を行い、2027年1月13日に削除する予定だ。古いクライアントを残すCIやデプロイ環境は、それまでに対応が必要になる。
 
-- Fact：新規RSA keyは2026年10月14日以降3072bit以上が必要
-- Fact：SHA-1署名のssh-rsaは2027年1月13日に削除予定
-- Fact：brownoutは2026年11月4日と12月9日に予定
-- Recommendation：既存RSA keyを削除する前にclient negotiationを確認する
+公式告知の予定。2026年10月23日再確認
 
-## 何が変わるか：四つの日付を運用予定へ落とす
+| 日付 | 変更 |
+| --- | --- |
+| 2026年10月14日 | 新規RSA鍵は3072bit以上。ML-KEMの新しい鍵交換も追加 |
+| 2026年11月4日 | ssh-rsa署名と旧鍵交換の一時停止試験 |
+| 2026年12月9日 | 二回目の一時停止試験 |
+| 2027年1月13日 | ssh-rsa署名と旧鍵交換を削除 |
 
-最初の変更日は2026年10月14日で、新規RSA keyの最小長とpost-quantum hybrid key exchangeが有効になった。次に11月4日と12月9日に、廃止対象algorithmのbrownoutが行われる。最終的に2027年1月13日、SHA-1の`ssh-rsa`署名typeと`diffie-hellman-group-exchange-sha256`が削除される予定だ。
+## RSA鍵があるだけでは、作り直す必要はない
 
-GitHub Enterprise Serverでは、ほとんどの変更が3.25に入り、`mlkem768x25519-sha256`の追加は3.24に入ると告知されている。github.comと自社GHESを同じ日程だと決めつけず、server versionとrelease notesを照合する必要がある。
+混同しやすいのは、ssh-rsaという文字列の意味だ。公開鍵ファイルの先頭ではRSAという鍵の種類を表す一方、廃止対象の署名名では「RSAとSHA-1の組み合わせ」を表す。id_rsaという名前のファイルがあるだけで、SHA-1を使用中とは判断できない。
 
-GitHubが公開したSSH変更schedule
+既存のRSA鍵でも、rsa-sha2-256やrsa-sha2-512というSHA-2署名を使える。GitHubは、クライアントが対応していれば、既存鍵を作り直さずに利用できると説明している。まず調べるのは鍵を使うソフトウェアと、その設定だ。
 
-| 日付 | 変更 | 確認対象 |
-| --- | --- | --- |
-| 2026-10-14 | 新規RSA 3072bit以上、ML-KEM hybrid追加 | key登録automation、対応client |
-| 2026-11-04 | 最初のbrownout | CI、deploy、開発端末の失敗log |
-| 2026-12-09 | 二回目のbrownout | 修正漏れと例外host |
-| 2027-01-13 | SHA-1 ssh-rsa署名と古いKEXを削除 | legacy clientの移行完了 |
+公式告知は、標準設定でRSAとSHA-2を使うための目安としてOpenSSH 7.2p1、libssh2 1.11.0、PuTTY 0.82などを挙げる。ターミナルのSSHだけでなく、IDEやCI製品に組み込まれた別のSSHライブラリも対象に含めると、確認漏れを減らせる。
 
-## RSA keyとssh-rsa署名は同じではない
+## 開発端末とCIで、SSHを使う接続を洗い出す
 
-公開鍵fileの先頭にある`ssh-rsa`はkey typeを表す。一方、廃止対象として書かれる`ssh-rsa`はRSAとSHA-1を組み合わせた署名algorithm名でもある。同じ文字列が二つの層に現れるため、`id_rsa`があるだけで廃止対象と判断すると誤る。RSA keyはSHA-256またはSHA-512の署名にも使える。
+影響するのは、SSHでGitへ接続する利用者と、GitHub Enterprise Serverで未認証のGitプロトコルを使う利用者だ。remote URLがhttps://で始まる接続には、今回のSSH方式の変更は直接影響しない。
 
-影響を受けるのは、古いOpenSSHやlibrary、またはconfigurationでSHA-1署名を強制しているclientである。keyを作り直す前に、client version、`HostkeyAlgorithms`、`PubkeyAcceptedAlgorithms`、組み込みGit client、IDEやautomation applianceを確認する。hardware tokenやmanaged applianceではfirmware更新が必要な場合もあるが、製品ごとの対応は本稿では未確認である。
+手元の端末に加え、CI、デプロイ、ミラー、submoduleを取得する環境も確認する。下のコマンドは、remote、SSHのバージョン、クライアントが対応する方式、ssh-agentの鍵のfingerprintを調べる例だ。対応方式の一覧は、その接続で実際に選ばれた方式とは区別する。
 
-## 誰に影響するか：SSH remoteとunauthenticated Git protocolを使う環境
+接続試験に使う公式コマンドはssh -T git@github.com。GitHubはシェルを提供しないため、認証に成功しても終了コードは1になる。成功メッセージに意図したユーザー名があるかも確認する。初回接続では、表示されたホスト鍵のfingerprintを公式情報と照合する。
 
-GitHubは影響対象を、SSHでGitへ接続する利用者と、GitHub Enterprise Serverでunauthenticated Git protocolを使う利用者として説明する。remote URLが`https://`で始まる場合、今回のSSH algorithm変更は直接影響しない。これはHTTPSが常に成功するという意味ではなく、認証・TLS・availabilityは別の論点になる。
-
-人の開発端末だけでなく、deploy key、CI runner、release machine、mirror、submodule、IDE内蔵SSH、古いJGit／libssh実装を含めて見る。通常のlogin testだけが成功しても、別identityや別container imageが古いclientを使っていれば移行漏れになる。
-
-## 今できること：read-onlyのinventoryから始める
-
-最初にremote URLとkey inventoryを読む。repositoryで`git remote -v`を確認し、SSH経路を使うjobとhostを列挙する。利用者のkeyはGitHub設定、deploy keyはrepository設定、machine上のkeyは`ssh-add -l -E sha256`などでfingerprintを照合する。知らないkeyを見つけた場合は単なるmigrationではなくsecurity incident候補として扱う。
-
-次にclient capabilityを確認し、brownout前に非本番経路で接続testを行う。GitHub Docsの`ssh -T git@github.com`は成功messageを出してもshellを提供しないためexit code 1になる点に注意する。automationではmessageとexit codeの両方を期待値として定義し、production deployの最中に初めて試さない。
-
-変更せずに確認できる項目
+状態を読む手順例。編集部では認証接続を実行していない。
 
 ```shell
 git remote -v
@@ -61,37 +48,27 @@ ssh -Q key
 ssh -Q sig
 ssh -Q kex
 ssh-add -l -E sha256
-# live接続testは変更windowと対象identityを確認してから
+
+# GitHubへの認証接続を試す場合
 ssh -T git@github.com
 ```
 
-## 新しいkeyを作るなら、置換より先にrollbackを用意する
+## 鍵交換の追加と、GitHub Enterpriseの適用範囲も確認する
 
-GitHub Docsは通常Ed25519を案内し、legacy systemで対応できない場合はRSA 4096bitを例示する。新keyを作る場合も、既存keyを即時削除せず、追加、接続確認、対象automation切替、監査log確認、旧key削除の順に進める。key file、agent、GitHub account、repository deploy keyのどこへ登録したかを対応付ける。
+10月14日には、ML-KEMとX25519を組み合わせた鍵交換mlkem768x25519-sha256も追加された。github.comとGitHub Enterprise Cloud with Data Residencyが対象で、後者の米国リージョンは例外として記載されている。これは通信の鍵を共有する方法の更新であり、利用者が持つ認証鍵の交換とは別の話だ。
 
-private keyをchat、Issue、repository、CI logへ置かない。passphrase、hardware-backed key、短命certificate、deploy key、GitHub Appなど選択肢は用途で異なる。今回のalgorithm更新を理由に、すべてのmachineへ同じprivate keyを複製するのは逆効果である。
+GitHub Enterprise Serverでは、新しい鍵交換は3.24、その他の変更は3.25へ入ると告知されている。github.comの日付と、自社サーバーのバージョンを分けて計画する。
 
-## post-quantum追加を、安全性の完成と読まない
-
-`mlkem768x25519-sha256`は、ML-KEMとX25519を組み合わせたhybrid key exchangeである。GitHubは量子計算機に対してsecureな新しい方式として追加すると説明するが、この一層だけでSSH全体が将来にわたり安全になるわけではない。client support、server region、host key検証、user key、endpoint compromiseは別の層に残る。
-
-GitHub Enterprise Cloud with data residencyでは米国regionが追加対象の例外として記載されている。利用中のregionやclientが未対応でも、従来の強いalgorithmで接続できる場合がある。ML-KEMを使っていないことと、SHA-1へfallbackしていることを同じriskとして扱わない。
-
-## 次に確認する条件：brownout結果と最終scheduleの変更
-
-次回は11月4日のbrownout後に、authentication failure、algorithm negotiation、legacy clientのlogを確認する。GitHubが日程、対象algorithm、region、GHES versionを変えた場合は記事も更新する。brownoutで問題が出なかった環境でも、実行されなかったnightly jobやdisaster recovery hostが残っていないかを見る。
-
-結論は、RSA keyを慌てて全交換することではない。key length、signature algorithm、key exchange、client versionを分離し、影響する接続だけを段階的に直すことだ。安全な移行は、inventory、test、rollback、旧key削除までを一つの作業として完了させる。
+新しい認証鍵が必要なら、GitHub Docsは通常Ed25519、未対応の古い環境ではRSA 4096bitを例示している。追加して接続を確かめ、必要なジョブを切り替えてから旧鍵を外す順序にすると、使える接続を残しながら移行できる。まずは11月4日の停止試験に向け、古いクライアントやSHA-1を強制する設定を見つけて直すことが実務の対応になる。
 
 ## 制約と未検証範囲
 
-- 本稿はGitHub ChangelogとGitHub Docsを2026年10月20日に照合した資料調査である。個人・organizationのSSH key一覧、deploy key、hardware key、GitHub Enterprise Cloud with data residency、GitHub Enterprise Serverへの接続変更やlive authentication testは行っていない。
-- 既存keyが実際にどの署名algorithmをnegotiationするかはclient、server、configurationに依存する。key file名や`ssh-rsa`という公開鍵typeだけで、SHA-1署名を使用中と断定できない。
-- GitHubのpost-quantum key exchange対応は将来の量子計算機に対する完全な安全性、endpoint認証、credential保護、repository内容の安全性を保証しない。
-- schedule、GitHub Enterprise Server version、地域例外、supported algorithmは更新され得るため、brownoutと廃止前に公式資料を再確認する必要がある。
+- 2026年9月22日の公式告知と10月23日確認のGitHub Docsに基づく。アカウントの鍵、デプロイ鍵、実際の署名交渉、GitHubへの認証接続は検証していない。
+- 公開鍵の種類と使用する署名方式は別。停止予定、対象リージョン、GitHub Enterprise Serverの適用バージョンは公式告知に従う。
 
 ## 確認したもの
 
-- [GitHub Changelog — Security improvements for SSH (2026-09-22)](https://github.blog/changelog/2026-09-22-security-improvements-for-ssh/)
-- [GitHub Docs — Checking for existing SSH keys (checked 2026-10-20)](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/checking-for-existing-ssh-keys)
-- [GitHub Docs — Testing your SSH connection (checked 2026-10-20)](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/testing-your-ssh-connection)
+- [GitHub Changelog：SSH方式、日程、クライアント、Enterpriseの条件（2026年9月22日）](https://github.blog/changelog/2026-09-22-security-improvements-for-ssh/)
+- [GitHub Docs：既存SSH鍵の確認](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/checking-for-existing-ssh-keys)
+- [GitHub Docs：接続試験と、成功時の終了コード1](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/testing-your-ssh-connection)
+- [GitHub Docs：新しい鍵の生成、Ed25519とRSA 4096bit](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent)

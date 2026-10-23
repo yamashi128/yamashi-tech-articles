@@ -1,24 +1,26 @@
-# Jujutsu入門：Git互換のまま履歴編集をやり直す
+# Jujutsu入門：GitHubを使い続けながら、変更と履歴を整理する
 
 YAMASHI TECH AI Editorial Desk | Deep Dive | DevTools / Software Engineering
 
 [掲載ページ](https://yamashi-tech.com/articles/tool-jujutsu-version-control) · [原稿データ](../articles/tool-jujutsu-version-control.json)
 
-公開: 2026-09-17 / 更新: 2026-09-17 / 確認: 2026-09-17
+公開: 2026-09-17 / 更新: 2026-10-23 / 確認: 2026-10-23
 
-working copyも履歴編集もcommitとして扱うJujutsu。既存Git repositoryをcolocateして、describe・new・undoまで試し、GitHub運用の注意点を整理した。
+Jujutsuは作業中の変更をcommitとして扱い、履歴の整理とやり直しを日常の操作にする。Gitとの違い、既存リポジトリでの試し方、bookmarkを使ったGitHub連携を順に説明する。
 
-## Jujutsuは、Git repositoryへ別の操作模型を持ち込む
+## 作業中の変更を一つのcommitとして育てる
 
-Jujutsu、command名`jj`は、Git repositoryと相互運用できるversion control systemだ。branchをcheckoutし、staging areaへaddし、commitするGitの操作模型とは違い、working copy自体を常に一つのcommitとして扱う。fileを編集すると現在のchangeへ自動的に反映され、`jj new`で次のchangeを始める。
+Jujutsuは、Gitリポジトリと相互運用できるバージョン管理システムだ。コマンド名は`jj`。GitHubを使い続けながら、手元の作業と履歴編集の方法を変えられる。変更を何段にも積み重ねたり、後からcommitを整理したりする開発者に向く。
 
-内部ではchange IDとcommit IDを分け、rebaseやamendでcommit IDが変わっても、同じ論理的changeとして追跡しやすい。履歴編集を特別な危険操作ではなく日常操作として扱い、操作そのものもoperation logへ記録する。Gitを捨てるのではなく、Git backendとGitHubを使いながらlocal workflowを変えられる点が特徴だ。
+大きな違いは、作業中のファイルも一つの「working-copy commit」として扱うことだ。多くのjjコマンドは、実行時にファイルの変更をそのcommitへ取り込む。Gitのように`add`でstaging areaへ選んでからcommitする手順はない。ひとまとまりの変更を作り、説明を付け、`jj new`で次の変更を始める。
 
-## Git経験者が最初につまずく三つの違い
+履歴編集でcommit IDが変わっても、change IDが同じ論理的な変更を追う助けになる。操作自体もoperation logへ記録されるため、ファイルの差分だけでなく、履歴をどう編集したかを確認してやり直せる。
 
-第一にstaging areaがない。編集は現在のworking-copy commitへ入る。第二にGitのbranchに近い名前はbookmarkだが、新しいcommitを作ってもbookmarkは自動で進まない。第三にworking copyには通常、まだdescriptionのないcommitが存在する。`jj commit -m`は現在のchangeへdescriptionを付けたうえで、新しいempty working copyを作る。
+## Gitのbranchに近いbookmarkは、自動で進まない
 
-この違いをGit commandの別名として覚えると混乱する。Jujutsuでは『今のchangeを育て、必要な位置へ置き、最後にbookmarkをpushする』と考える。GitHubへ見えるのはGit commitとbranchなので、local modelとremote protocolを分けて理解する。
+Git経験者が先に覚えたいのは、working copy、bookmark、次のchangeの関係だ。`jj describe`は現在のchangeへ説明を付ける。`jj new`は新しい作業用commitを作る。`jj commit -m`は説明を付け、続けて次の空のworking-copy commitを作る。
+
+bookmarkはGitのbranchに近い名前だが、次のcommitを作っても自動では進まない。ローカルではbookmarkを付けずに複数のchangeを作り、GitHubへ送る段階で、公開したいrevisionへbookmarkを置ける。Gitのコマンドの別名として暗記するより、「変更を整理してから、送る場所に名前を付ける」と理解するとつながる。
 
 | 概念 | Git | Jujutsu |
 | --- | --- | --- |
@@ -28,27 +30,13 @@ Jujutsu、command名`jj`は、Git repositoryと相互運用できるversion cont
 | 履歴編集 | rebase -i等 | 通常commandでchangeを移動・編集 |
 | 操作の取消 | reflog等から復旧 | operation logとjj undo |
 
-## 既存Git repositoryをcolocateして検証した
+## 既存Gitリポジトリの隣で、基本操作を試す
 
-2026年9月17日、macOS x86_64の一時directoryへJujutsu 0.45.1の公式release binaryを配置した。sample Git repositoryにinitial commitを作り、`jj git init --colocate .`を実行した。`.git`を残したまま`.jj`が作られ、既存の`main`とcommitがimportされた。
+試すときは、一時リポジトリや検証用cloneを使う。`jj git init --colocate .`は、既存の`.git`を残して同じ場所へ`.jj`を作る方法だ。Gitのツールを残したままjjを使い始められる。下の例ではmainを起点にchangeを作り、変更を見て説明を付ける。
 
-READMEを編集すると`jj st`が変更を認識し、`jj diff --stat`は2行追加を表示した。`jj describe`で現在のchangeへ説明を付け、`jj new`で次のempty changeを作成したあと、`jj undo`で直前のnew操作を取り消せた。なおGit側へuser.nameとemailを設定していても、Jujutsuは作者情報が未設定だと警告した。`jj config`側の設定が別途必要になる点は導入時に確認したい。
+`jj undo`を使う前に`jj op log`で対象を読む。undoは直前のJujutsu操作を取り消すため、単なるファイル復元とは意味が違う。作業を進めた後に何度も実行するのではなく、どの状態へ戻すかを確認してから使う。
 
-| 確認項目 | 結果 | 気づき |
-| --- | --- | --- |
-| jj | 0.45.1 | 公式macOS x86_64 binary |
-| colocate | 既存.gitを保持して初期化成功 | Git toolと段階併用できる |
-| working copy | 編集を即時認識 | git add相当は不要 |
-| operation undo | jj newを取消 | fileだけでなくVCS操作を戻す |
-| identity | 未設定warning | Git configとjj configを別確認 |
-
-## sandbox repositoryで基本loopを覚える
-
-本番repositoryへいきなり導入せず、cloneまたは一時repoで`jj st`、`jj diff`、`jj describe`、`jj new`、`jj log`を触る。Jujutsuではfile editが現在のchangeへ入るため、作業を始める前に`jj new main`などで目的のbaseから新しいchangeを作る習慣が重要になる。
-
-`jj undo`は直前のJujutsu operationを戻す。何が戻るかを確認せず連打しない。`jj op log`でoperation履歴を見て、対象を理解してから復旧する。外部Git toolによる変更もcolocated workspaceへ同期されるが、同時操作や自動toolの前提を小さなrepoで確認する。
-
-既存Git repoで試す最小loop
+検証用Gitリポジトリで試す操作例。既存の作業へ適用する前に状態を確認する。
 
 ```shell
 cd sandbox-repo
@@ -66,13 +54,27 @@ jj op log
 jj undo
 ```
 
-## GitHubへ送るときだけbookmarkが必要になる
+## 一時リポジトリでは、colocate・変更認識・undoが動いた
 
-localではbookmarkなしでchange stackを作れる。GitHubへpushするときは、Jujutsuに自動名を作らせて特定changeをpushするか、named bookmarkを作ってtrackし、pushする。公式guideはworking-copy commitがemptyの場合、そのparentへbookmarkを置く例を示す。
+2026年9月17日、macOS x86_64へJujutsu 0.45.1の公式release binaryを一時配置して検証した。initial commitを持つGitリポジトリでcolocateすると、既存のmainとcommitが取り込まれた。READMEを編集すると`jj st`が認識し、`jj diff --stat`は2行追加を表示した。
 
-bookmarkはGitのbranchとしてremoteへ現れるが、新しいcommitを作っても自動追従しない。review修正を追加したら、bookmarkを新しいrevisionへmoveして再pushする。Gitの『現在branchがcommitと一緒に進む』感覚を持ち込まない。
+`jj describe`で説明を付け、`jj new`で次の空changeを作った後、`jj undo`でnew操作を取り消せた。一方、Git側へuser.nameとemailを設定済みでも、jjは作者情報が未設定だと警告した。導入時にはjj側の作者設定も確認する。この検証ではGitHubへのpushは行っていない。
 
-change stackをnamed bookmarkでpush
+| 確認項目 | 結果 | 気づき |
+| --- | --- | --- |
+| jj | 0.45.1 | 公式macOS x86_64 binary |
+| colocate | 既存.gitを保持して初期化成功 | Git toolと段階併用できる |
+| working copy | 編集を即時認識 | git add相当は不要 |
+| operation undo | jj newを取消 | fileだけでなくVCS操作を戻す |
+| identity | 未設定warning | Git configとjj configを別確認 |
+
+## GitHubへ送るrevisionにbookmarkを置く
+
+ローカルで整理したchangeをGitHubへ送るときは、生成名で特定のchangeをpushする方法と、名前付きbookmarkを使う方法がある。下は後者の例だ。`jj commit`の後はworking copyが空なので、その親を表す`@-`へbookmarkを置く。
+
+レビュー修正を追加した場合は、bookmarkを新しいrevisionへ移してからpushする。たとえば`jj commit`で修正を記録した後なら、`jj bookmark move parser-work --to @-`で更新できる。push前に`jj log`と`jj st`で対象と差分を読み、GitHub側のbranch protectionやレビュー規則に従う。
+
+公式資料に基づく名前付きbookmarkの例。trackはローカルの追跡設定、pushはリモートのブランチを更新する。編集部では未実行。
 
 ```shell
 jj new main
@@ -86,13 +88,13 @@ jj bookmark track parser-work
 jj git push --bookmark parser-work
 ```
 
-## fetchとrebaseは二段階
+## fetchで取得し、rebaseするchangeを選ぶ
 
-公式guideでは、現在`git pull`の直接対応commandはなく、`jj git fetch`でremote更新を取得し、`jj rebase -o main`で自分のchangeを新しいmainへ移す。複数のbranch stackがあるなら、対象を明示してrebaseする。自動で全部が正しいbaseへ移ると仮定しない。
+リモートの変更取得と、自分の履歴の載せ替えは分ける。公式ガイドでは`git pull`に直接相当する一つのコマンドではなく、`jj git fetch`の後に`jj rebase -o main`を使う流れが示されている。複数のchange stackがあるなら、対象を指定してそれぞれ扱う。
 
-conflictはJujutsu内でfirst-classな状態として扱われ、解決を後へ持ち越せる。ただし、conflictを含むrevisionをbuildやpushしてよいとは限らない。CIへ送る前に`jj st`と`jj log`でconflictとbookmark位置を確認し、testを実行する。
+Jujutsuはconflictも履歴上の状態として扱えるため、解決を後へ回せる。しかし、ビルドやレビューへ送る前にはconflictの有無を確認し、プロジェクトの検証を通す。操作を続けられることと、完成したコードであることは分けて判断する。
 
-remote更新へ追従する
+リモート更新を取得して履歴へ反映する操作例。編集部の実接続試験は行っていない。
 
 ```shell
 jj git fetch
@@ -102,27 +104,17 @@ jj st
 # projectのlint・test・buildを実行
 ```
 
-## colocated運用は、互換性と二重管理のtradeoff
+## 履歴編集が多い人ほど、Gitと併用して試す価値がある
 
-colocated workspaceでは、各`jj` commandがJujutsuとunderlying Gitのviewを同期する。既存IDEやGitHub clientを残して段階移行できる利点がある。一方、Git toolがHEADやbranchを動かし、jjが再importするため、両者のmodelを理解しないまま交互に操作すると驚きが増える。
+colocated運用では、jjがGitと自身の状態を同期する。既存のIDEやGitHubクライアントを使いやすい一方、Git側は通常のbranch checkoutとは違うdetached HEAD状態になる。Gitのbranchとindexを前提にしたスクリプトやhookがあるなら、その動作を検証用リポジトリで確かめる。
 
-team全員がJujutsuへ移る必要はないが、repositoryのdocumentationには、bookmarkのpush方法、author設定、CI前check、問題時の復旧手順を書く。server側はGitのため、branch protectionやpull request policyは引き続きGitHub側で効く。localで履歴編集しやすいことと、remoteへforce updateしてよいことは別だ。
+チーム全員が一斉に移る必要はない。まず、複数changeの整理、頻繁なrebase、作業のやり直しが多い人から試せる。編集部の提案としては、非重要リポジトリで二週間程度使い、レビュー用の履歴を作る手間や復旧のしやすさを比較すると判断しやすい。
 
-## 誰に向き、誰にはまだ早いか
-
-複数changeのstack、頻繁なrebase、途中作業の整理、履歴編集のやり直しが多い開発者には価値がある。operation logとchange IDは、local historyを積極的に整えるworkflowと相性がよい。GitHubはそのまま使えるため、個人から試しやすい。
-
-一方、Gitのbranch・indexを前提にした社内script、GUI、教育、hookが多い組織では移行costがある。Gitに困っていない小規模teamへ、新しい用語を増やすだけになる可能性もある。まず非重要repositoryをcolocateし、二週間程度、復旧時間とreviewのしやすさを記録して判断する。
-
-- 本番repoではなくsandbox cloneで操作模型を覚える
-- Git identityとは別にjjのuser.name・emailを確認する
-- push前にbookmark位置と対象revisionを確認する
-- jj op logを見てからundoや復旧を行う
-- localの柔軟さとremote policyを混同しない
+日常的なGit操作で困っていなければ、新しい概念を覚える負担もある。採用する場合は作者情報、bookmarkを進める手順、push前の確認、operation logからの復旧を共有する。GitHubの運用を維持したまま、手元の履歴編集を改善できるかが見るべき点だ。
 
 ## 制約と未検証範囲
 
-- Jujutsu 0.45.1を使った使い捨てrepositoryで確認し、production teamのmigration、hosted forge運用、大規模repositoryの性能は検証していない。
+- 実行結果は2026年9月17日のmacOS x86_64・Jujutsu 0.45.1による使い捨てリポジトリの既存検証。2026年10月23日は公式資料を再確認した。GitHubへのpush、チーム移行、大規模リポジトリの性能比較は試していない。
 
 ## 確認したもの
 
@@ -131,3 +123,4 @@ team全員がJujutsuへ移る必要はないが、repositoryのdocumentationに�
 - [Working with GitHub and GitLab](https://www.jj-vcs.dev/latest/github/)
 - [Git command table](https://www.jj-vcs.dev/latest/git-command-table/)
 - [Jujutsu operation log](https://www.jj-vcs.dev/latest/operation-log/)
+- [Jujutsu — Working copy：自動snapshotの仕組み](https://www.jj-vcs.dev/latest/working-copy/)

@@ -1,89 +1,51 @@
-# Googleが示したAI脆弱性検査のpre-submit化：公開Mantisと社内パイプラインの境界
+# Google、コード変更ごとにAIで脆弱性検査。Mantisを生かした開発中の防御を公開
 
 YAMASHI TECH AI Editorial Desk | News | AI / ML / AI Agents / DevTools / Security
 
 [掲載ページ](https://yamashi-tech.com/articles/news-google-agentic-presubmit-security-mantis) · [原稿データ](../articles/news-google-agentic-presubmit-security-mantis.json)
 
-公開: 2026-09-20 / 更新: 2026-09-20 / 確認: 2026-09-20
+公開: 2026-09-20 / 更新: 2026-10-23 / 確認: 2026-10-23
 
-Googleは、コード変更ごとにAI agentで脆弱性を検査し、構造的なtriageと人間review付き修正をつなぐ社内運用を公開した。OSSのMantisで再現できる範囲と、内部で報告された精度・規模を分けて整理する。
+Googleは、コードを取り込む前にAIが変更を検査し、別の解析で攻撃経路を確かめ、修正案を人へ渡す仕組みを公開した。開発の流れへ検査を組み込む設計と、公開Mantisで試せる範囲を読み解く。
 
-## 要点：AIにscanを任せる発表ではなく、変更単位の検査と決定的な検証を組み合わせる設計
+## 取り込んだ後ではなく、変更の段階で脆弱性を見つける
 
-Google Cloudは2026年9月18日、同社のinfrastructure codeで、各code check-inをAI agentでpre-submit scanし、夜間のpost-submit scanとhuman review付きの修正提案へつなぐ運用を説明した。ここでの中心は、LLMにrepository全体を一度に読ませてbugを列挙させることではない。変更を小さく区切り、local threat modelとdependency call graphでcontextを渡し、別のtriage agentがAST解析などで到達可能性を確かめる、というpipelineである。
+Google Cloudは公式ページで2026年9月19日付（日本時間）の記事を公開し、自社インフラのコード変更を継続的に検査する仕組みを説明した。コードを取り込む前の検査（pre-submit）へAIエージェントを入れ、開発者が修正しやすい段階で問題を伝える。
 
-同時に読むべき境界がある。Googleが公開しているMantisは、この種のagentic security workflowを組み立てるためのskillsとADK reference harnessだが、repository自身はdemonstration purposeでproduction向けではないと明記する。Google内部で報告された規模、92%超のprecision、1分未満、false-positive rate 3%未満の一部事例を、OSSをcloneすれば再現できる性能値として扱ってはいけない。
+大規模なコード全体を後から一度に調べる方式に比べ、変更単位なら読む範囲を絞れる。ただし差分だけでは周辺の設計を取り落とすため、Googleは依存関係や攻撃経路の情報も組み合わせる。同社によると、数億行規模のコードを対象に、毎月数百件の脆弱性がコードベースや本番へ入るのを防いでいる。
 
-- Fact：Google Cloudは9月18日、変更ごとのpre-submit AI scan、structural triage、夜間scan、human review付きfixという内部運用を説明した
-- Numeric fact：92%超のprecisionと1分未満、false-positive rate 3%未満の一部事例は、Googleが公表した内部条件での数値である
-- Fact：公開Mantisはopen sourceだが、officially supported Google productではなく、production useを意図しないとREADMEが明記する
-- Recommendation：導入は『agentを足す』前に、変更単位、到達可能性の検証、隔離環境、human reviewの各gateを自社workflowへ置けるかで判断する
+## 候補の検出と、攻撃者が到達できるかの確認を分ける
 
-## 何が起きたか：9月18日にGoogleが社内の継続的な脆弱性検査pipelineを公開
+最初のエージェントは軽量な検査で候補を挙げる。その際、最新のコード情報に基づく局所的な脅威モデルと、パッケージやライブラリをまたぐ呼び出し関係を参照する。例えば入力検証がない関数でも、外部から到達できるかどうかで、問題の意味は変わる。
 
-発表主体はGoogle Cloudで、公開日は2026年9月18日である。公式記事は、Googleのinfrastructureへdeployするhundreds of millions of linesのcodeについて、各変更を継続的にscanし、月あたりhundredsの脆弱性がcodebaseまたはproductionへ到達する前に防がれている、と説明する。これは特定のSaaS製品の一般提供開始ではなく、Googleが自社SDLCで使うarchitectureと運用上のlearned practiceの公開である。
+次に別の担当エージェントが、抽象構文木（AST）、呼び出し経路、分野ごとの安全規則を使い、候補を構造的に確かめる。AIの説明がもっともらしいかだけに頼らず、攻撃者から問題の経路へ到達できるかを解析する構成だ。
 
-今回の新しさは、Mantisそのものの初公開ではない。MantisのOSS化と入門記事は9月2日に既に公開されている。9月18日の記事は、公開harnessを発展させたinternal pipelineを、pre-submitの速度とprecisionを要するinfrastructure codeへどう組み込むかを説明した。したがって、読者は『Mantisを入れればGoogleと同じ防御になる』ではなく、『変更時のagent scanを、どの検証と責任分界で既存CIへ足すか』として読む必要がある。
+夜間の取り込み後検査も併用し、複数の変更を組み合わせて生じた問題を探す。修正エージェントは検査結果と再現の根拠からパッチを作り、元の変更と同じレビューの流れで人へ提出する。検出、根拠の確認、修正、承認をそれぞれ別の段階にしている。
 
-## 以前との違い：大きな一括scanから、差分・脅威model・構造検証を分けた多段処理へ
+## 社内実績と、公開されているMantisの役割
 
-Googleの説明では、従来の大規模なone-off scanは遅く、contextが不足し、脆弱性を遅く見つけがちだった。新しいflowは、code check-inごとに軽量scanを走らせる。差分単位なら入力contextを抑えられる一方、依存先や過去の設計判断が欠ける危険があるため、static documentではなくlive codebase metadataを使うlocalized threat modelと、package・libraryを横断するdependency call graphでcontextを補う。
+Googleは候補を精査するエージェントについて、適合率92%超、処理時間1分未満と報告した。また局所的な脅威モデルを使うことで、誤検出率が一部の事例で3%まで下がったとする。適合率は、指摘したうち本当の問題だった割合を表す。これらはGoogle内部の条件での実績で、公開版を導入した際の性能値ではない。
 
-その候補findingをそのままblockや修正に使わない点も重要だ。公式記事では、specialized triage agentがAST parsing、call-graph traversal、事前indexしたdomain safety rulesでvulnerable pathがattackerから実際に到達可能かをprogrammatically確認すると説明する。ここでagentの自然言語的なもっともらしさと、構造的に確認できる条件を別々に扱う。編集部のInferenceとして、これはLLMをSASTの完全な置換にするより、仮説生成と既存の解析・ruleを接続する設計に近い。
+仕組みの土台に使われるMantisは、脅威モデルの作成、調査、レビュー、修正などをつなぐ公開ツール群だ。9月2日の入門記事では、ファイルごとの要約をディレクトリ、全体へまとめる構成により、トークンの負担を85%超削減したと説明している。こちらも同社の報告であり、今回の適合率と同じ評価指標ではない。
 
-公開資料に基づく処理段階と、そこで確定しないこと
+10月23日に確認した公開READMEは、Mantisを実演用の参照実装と位置付け、正式サポートのGoogle製品でも本番向けでもないと明記する。追加されたPR検査も実プロジェクトでの一貫した動作検証は未了とされ、マージを止める条件に使わないよう案内している。
 
-| 段階 | Googleが説明した役割 | この段階だけでは確定しないこと |
-| --- | --- | --- |
-| pre-submit scan | 各code check-inをAI agentで評価し、候補を早く出す | findingが悪用可能であること、修正が安全であること |
-| localized threat model | live metadataとcall graphで変更に関連するcontextを与える | 脅威modelの完全性、他組織への性能の移植性 |
-| triage | AST・call graph・domain ruleで到達可能性を構造的に確認する | 全種別の脆弱性検出、Google外での92%超precision |
-| post-submit scanとfix | 夜間scanと、proofを伴う修正提案をhuman reviewへ渡す | patchの正しさ、release後の安全性、責任の移転 |
+## 自社へ生かすなら、差分・根拠・修正レビューをつなぐ
 
-## 数字の読み方：92%超、1分未満、3%未満は比較可能な製品benchmarkではない
+開発チームが取り入れやすいのは、「AIの指摘をそのまま採用する」方式より、差分へ必要な周辺情報を加え、既存の解析やテストで確かめる流れだ。どの入力から問題箇所へ届くか、既存テストで何を確認できるかを、修正案と一緒に読めるようにする。これはGoogleの事例から得られる設計上の示唆である。
 
-Googleは、specialized triage agentが92%超のprecisionで1分未満に完了すると記す。またlocalized threat modelを用いた結果として、false-positive rateが一部caseで3%まで下がったとする。いずれもNumeric factとして記事に残せるが、model名、評価dataset、脆弱性の定義、分母、recall、実行回数、baseline、p50／p95 latency、対象repositoryの詳細は同じ記事では公開されていない。
+Mantis自体を評価する場合、READMEは自動生成したコードが実行されることを注意し、本番、機密データ、社内ネットワークへ届かない隔離環境と、専門家による指摘・修正の確認を求めている。初回の検討対象は、そうした境界を作れる範囲になる。
 
-ゆえに、この数値から『Mantisは92%正確』『AI scanはfalse positive 3%』『1分以内ならCIを止めてもよい』とは結論できない。特にprecisionだけでは見逃しを表すrecallが分からず、false-positive rateだけではseverity別の運用負荷も分からない。Googleの内部で有効だったというcase studyと、読者のrepositoryで採用判断に必要な比較実験は別物である。導入時は既知のsecurity regressionを含むfixture、review時間、blockの誤り、見逃し、コストを自社条件で記録するのが安全だ。
-
-## 誰に影響するか：AI codingをCIへ入れるteamほど、検出よりtriageの設計が重要になる
-
-既にAI code review、SAST、dependency scan、secret scanを使うteamにとって、この発表は新しい単体scannerの比較表ではない。既存の品質gateへAI agentを足すなら、どの変更で起動し、何をcontextとして渡し、どの条件で人間reviewへ上げ、誰が修正を承認するかを先に決める必要がある。Googleが採ったように、軽いscanと構造的validationを分けると、AIの提案をall-or-nothingでmerge gateにしない設計を取りやすい。
-
-反対に、小さなteamやsecurity reviewの基盤がまだない環境では、autonomous patchingから始めるのは適切でない可能性が高い。Mantis READMEは、agentが不安定なcodeを生成・実行し得ること、findingとpatchをsecurity expertが確認すること、production system、sensitive data、internal networkにaccessできるmachineで実行しないことを強く注意している。公開repositoryのskill名やagent graphがあっても、隔離、access control、ログ、responsible disclosureを省略できるわけではない。
-
-## 今できること：production repositoryを渡さず、まず自社の検証gateを棚卸しする
-
-まずは現在のpull request／changeのflowで、脅威model、dependency情報、SAST rule、テスト、security reviewerがどこにあるかを書き出すとよい。次に、AIの出力を『finding』ではなく『調査仮説』として扱い、ASTやcall graph、unit test、再現用sandboxのどれで反証または裏付けるかを決める。Googleの公開資料から直接導けるのはこの設計原則であって、特定modelやprompt、thresholdの推奨値ではない。
-
-Mantisを評価する場合も、公開READMEの安全上の注意を満たす、productionと切り離した使い捨て環境から始めるべきだ。本稿ではinstallやlive scanを行っておらず、認証、費用、実行時間、検出精度は確認していない。そのため『このcommandで安全に動く』という手順は載せない。特にcredentials、顧客data、社内network、外部へのissue作成やpatch提出を伴うactionは、evaluationの前に明示的な承認と隔離を要する。
-
-- Recommendation：AI scanのfindingを自動で外部報告・merge・deployする経路は作らず、先にhuman approvalを必須にする
-- Recommendation：reachability、再現、severity、patch validationを同じagentの自己評価だけに委ねず、独立したruleやsandbox testを置く
-- Recommendation：precisionだけでなく、見逃し、review時間、差分の種類、cost、停止条件を記録して段階的に判断する
-
-## まだ分からないこと：internal systemの評価条件と、公開Mantisの実運用性能
-
-Googleの9月18日記事は、internal systemとその運用の概要を示すが、再現可能なbenchmark仕様ではない。対象脆弱性class、modelとversion、prompt、dataset、negative sample、ground truth、baseline、recall、false negative、平均・tail latency、費用、human reviewの承認率、patch採用率は公開資料だけでは確認できない。false-positive rate 3%の『some cases』がどの条件かも分からない。
-
-公開Mantisについても、対応するagent provider、model、sandbox構成、長時間runの予算、repositoryのdata handling、外部toolへの権限は個別のconfigurationに依存する。READMEはreference harnessを出発点としてadapt・tune・extendするよう案内し、production用途を意図しないとする。したがって、Googleのinternal pipelineとMantis OSSの機能対応、性能、support、security assuranceを同一視しないことが、この発表を安全に読む第一条件になる。
-
-## 次に確認する条件：評価仕様、公開版のrelease、sandboxとresponsible-use guidanceが更新されたとき
-
-次に確認すべきなのは、Googleがinternal metricsの評価条件や比較対象を公開するか、Mantisにproduction-readyを示すreleaseやsupport policyが加わるか、そして安全なsandbox・access control・human reviewについて公式guidanceが具体化するかである。各teamでは、agentic scanをmerge gateへ昇格させる前に、自社の代表的なchangeと既知の脆弱性で、false positiveだけでなく見逃しとreview負荷を確認する条件を定めたい。
-
-結論として、今回の価値は『AIが脆弱性対策を自律化した』という宣言よりも、agentの候補出し、構造的triage、nightly defense、human-reviewed patchを分離してつなぐ設計を公開した点にある。Googleの数値は興味深いが内部caseの範囲に留め、公開Mantisは安全な検証を始める材料として扱う。この二つの境界を保つことが、AI security toolingを実務へ持ち込むときの最初のquality gateになる。
+訂正（2026年10月23日）：紹介記事の日付を、公式の表示と公開メタデータに合わせ、9月19日（日本時間）へ統一した。旧版は時間帯を示さず9月18日としていた。また誤検出率は、公式記述に合わせ「一部の事例で3%まで」に修正した。
 
 ## 制約と未検証範囲
 
-- Googleが9月18日に説明したhundreds of millions of lines、月あたりhundredsの脆弱性、false-positive rate 3%未満の一部事例、92%超のprecisionと1分未満は、同社の内部system・条件についての自己報告であり、独立benchmarkや第三者再現ではない。
-- 公開Mantis repositoryはreference harness／demonstration purposeで、officially supported Google productでもproduction用途向けでもない。READMEは、isolatedかつrestrictedな環境でのみ扱い、findingとpatchをsecurity expertが手動確認するよう求めている。
-- 本稿の調査ではMantisをclone、install、認証、repository scan、exploit reproduction、patch生成、外部API callを実行していない。費用、対応model、必要な権限、実行時間、実環境でのprecision・recall・false positive率は検証していない。
-- 脆弱性の重大度、到達可能性、修正の正しさは、agent出力だけでは決められない。各組織はsecurity policy、data boundary、sandbox、human review、responsible disclosureの手順を別途整備する必要がある。
+- 公開資料の調査であり、Mantisの導入、コード走査、再現コードや修正案の生成・実行は行っていない。
+- 規模、適合率、誤検出率、時間、トークン削減はGoogleの自己報告。見逃し率や、他組織での効果を測定したものではない。
 
 ## 確認したもの
 
-- [Google Cloud — Using agentic AI to secure infrastructure code (2026-09-18)](https://cloud.google.com/blog/topics/systems/using-ai-agents-to-secure-google-infrastructure)
+- [Google Cloud — Using agentic AI to secure infrastructure code (2026-09-19)](https://cloud.google.com/blog/topics/systems/using-ai-agents-to-secure-google-infrastructure)
 - [Google Cloud — Getting started with Mantis, our open-source bug finding-and-fixing harness (2026-09-02)](https://cloud.google.com/blog/products/identity-security/getting-started-with-the-mantis-harness-to-find-and-fix-bugs)
 - [google/mantis — README, safety notices, and reference-harness scope](https://github.com/google/mantis)
 - [Google Cloud — How Google Cloud Security uses AI internally (2026-06-29)](https://cloud.google.com/blog/products/identity-security/cloud-ciso-perspectives-how-google-cloud-security-uses-ai-internally)

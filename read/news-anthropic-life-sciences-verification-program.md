@@ -1,97 +1,47 @@
-# Anthropicが生命科学向けLSVPをβ公開：AIの利用可否は用途別監査へ
+# Anthropicが生命科学向けLSVPを開始。研究用途に応じてClaudeの利用範囲を広げる
 
 YAMASHI TECH AI Editorial Desk | News | AI / ML / AI Agents / Security / Industry
 
 [掲載ページ](https://yamashi-tech.com/articles/news-anthropic-life-sciences-verification-program) · [原稿データ](../articles/news-anthropic-life-sciences-verification-program.json)
 
-公開: 2026-09-18 / 更新: 2026-09-18 / 確認: 2026-09-18
+公開: 2026-09-18 / 更新: 2026-10-23 / 確認: 2026-10-23
 
-Anthropicは生命科学チーム向けに、組織審査・用途別grant・継続監視を組み合わせたLSVPをβ公開した。Claude API／Claude Codeを使うteamが確認すべきアクセス、保持、運用境界を一次情報から整理する。
+生命科学の研究でClaudeが回答を止める場面を減らすため、Anthropicは組織と用途を審査するLSVPをβ公開した。チーム向けと研究案件向けの二つの利用許可を設け、利用範囲の拡大と30日間のデータ保持・監視を組み合わせる。
 
-## 要点：これはmodelの一般公開ではなく、利用境界を組織と用途で分けるβプログラム
+## 正当な研究を進めやすくする、組織審査付きの利用制度
 
-Anthropicは2026年9月17日、Life Sciences Verification Program（LSVP）を発表した。生命科学のprofessionals向けに、通常提供のFable modelよりbiology関連のsafeguardを緩和したMythos、Opus、Sonnetへのアクセスを、審査済みのteamとinstitutionへ提供するbetaだ。発表の読みどころは、単に『より強いmodelが使える』ことではない。組織のcredential、security標準、倫理的な研究監督を確認し、許可する用途とgrantを結び付け、利用を継続監視するというaccess modelにある。
+Anthropicは2026年9月17日、Life Sciences Verification Program（LSVP）を発表した。生命科学のチームや研究機関を審査し、生物学関連の安全策を調整したMythos、Opus、Sonnetを提供するβプログラムだ。創薬、基礎研究、臨床開発、製造などで、一般提供モデルが制限する質問にも対応できるようにする。
 
-日本語話者のソフトウェアエンジニアにとっては、AI productの安全策がprompt単位の拒否だけではなく、identity、組織の責任、用途、監査の設計へ広がる事例として重要だ。LSVPはClaude CodeとAPIを含む複数surfaceで使える一方、誰でも今すぐ利用できるAPI tierではない。研究や製品の可否をmodel responseだけで判定するのではなく、申請内容、権限、保持、incident対応までworkflowへ含める必要がある。
+背景には、同じ生物学の情報が研究にも悪用にも使われる問題がある。質問一件だけでは意図を判定しにくいため、研究実績、セキュリティ基準、倫理面の監督体制を持つ組織を確認し、申請した用途に結び付けてアクセスを認める。研究組織がClaudeを業務へ接続する際の、新しい利用経路になる。
 
-- Fact：LSVPはteam・institution向けのbetaで、応募受付が始まった
-- Fact：Standard UseとHigh-risk Useは、対象範囲と更新周期が異なるgrantである
-- Fact：LSVP trafficでは、offline monitoringのため30日間のdata retentionを要求する
-- Recommendation：導入可否はmodel能力ではなく、用途定義と監査・保持条件を自社で受け入れられるかで先に判断する
+## 日常業務はチーム単位、高リスク用途は研究案件単位で許可する
 
-## 何が起きたか：9月17日にLSVPを発表、まずteamとinstitutionから開始
+LSVPの利用許可は「grant」と呼ばれる。Standard Useはチームの日常的な生命科学業務を対象とし、年1回更新する。発表時の対象モデルはMythos 5.1、Opus 5、Sonnet 5。High-risk UseはStandard Useで制限される研究のための追加許可で、一つの研究案件に限定し、6か月ごとに更新する。
 
-発表主体はAnthropic、発表日は2026年9月17日である。公式発表によれば、LSVPはearly accessで数十のorganizationをonboardした後、より広いlife science communityへapplicationを開いた。初期の対象はteamとinstitutionで、individualのPro／Max planへの拡大は今後の予定として述べられている。したがって、個人のClaude利用者が既存planの設定を切り替えてすぐ参加できる、という発表ではない。
+例えば、通常の調査にはチーム共通のStandard Useを使い、追加審査が必要な研究だけ別のHigh-risk Useへ分ける。発表時に後者を広く提供する対象はOpus 5とSonnet 5で、Mythosは追加審査を受ける少数の組織に限られる。High-risk Useでもサイバー分野など、生命科学以外の安全策は残る。
 
-対象として挙げられているのはdrug discovery、research biology、clinical development、manufacturingなどだ。ただし本稿は医療上・研究上の助言を扱わない。ここで確認するのは、生命科学というhigh-consequence domainで、providerがmodel accessをどのように切り分け、software workflowへどう接続しようとしているかである。『科学用途なら自由に使える』という一般的な解除ではなく、審査とgrantが前提の提供だ。
+利用許可を得ることと、研究結果の正しさを確認することは別の作業だ。組織の研究審査や、出力を専門家が点検する工程は、そのまま必要になる。
 
-公式発表は、LSVPでMythos、Opus、Sonnet modelに、通常のFable modelよりbiology taskへpermissiveなclassifierを適用すると説明する。これは特定の質問で常に望ましい回答が返ること、出力が科学的に正しいこと、または安全性が不要になることを意味しない。schemaに合うresponseと意味内容の正しさを混同できないのと同じく、access controlと成果物のvalidationは別の責任として残る。
+## 用途の逸脱を継続監視するため、通信データを30日間保持する
 
-## 以前との違い：request単位のblockだけでなく、grantと宣言用途を運用単位にする
+LSVPでは、組織が宣言した安全な用途から外れる利用を、複数のリクエストやセッションにまたがって監視する。Anthropicは、リアルタイムで回答を止める方式から、利用の流れを事後に調べる方式へ重点を移すと説明する。逸脱を見つけた場合は組織の管理者へ連絡し、事前に合意した時間内で調査・対処する。
 
-従来の一般的なsafeguardでは、入力または出力をreal-timeに分類し、危険と判断したrequestをblockする設計が中心になる。Anthropicの説明では、LSVPでは正当な研究と悪用の文脈がrequest単位だけでは区別しにくいことを前提に、審査済みorganizationがteamまたはprojectの安全な利用範囲を申請し、providerがその宣言から外れたpatternを監視する。重要なのは、blockを少なくする代わりに無条件の自由化をするのではなく、責任の単位をorganizationとuse caseへ移している点だ。
+この監視のため、LSVPの通信には30日間のデータ保持が必須となる。同社は、保持データをモデルの学習へ使わず、自社の生命科学研究チームも閲覧できないとしている。利用組織にとっては、回答できる範囲だけでなく、研究データをその条件で送信できるかが導入判断になる。
 
-この設計では、AI applicationのログや権限も『便利な補助機能』ではなくaccessの一部になる。例えば同じAPI callでも、どのgrant、どのproject、誰のidentity、どの宣言済みuse caseに属するかを後から追えなければ、逸脱を調べにくい。これはLSVPの外へそのまま一般化できる仕様ではないが、security-sensitiveなagentを設計するteamには、modelに渡すinstructionだけでなく、tool identity、approval、audit eventを最初から分離して持つ必要があるという示唆になる。ここは編集部のInferenceである。
+β版はBAAを有効にした組織では利用できない。保護対象の医療情報（PHI）を扱う構成は、一般の研究情報を使う構成と分けて検討する必要がある。
 
-公式発表のアクセスと運用の違いを、導入判断向けに整理
+## 利用する製品と、案件ごとの権限の切り替えを確かめる
 
-| 観点 | 通常のFable提供との関係 | LSVPで発表された扱い | 実装・運用で確認すること |
-| --- | --- | --- | --- |
-| 対象 | 一般提供のsafeguard | 審査済みteam・institution向けbeta | 組織・担当・利用目的を誰が管理するか |
-| アクセス単位 | requestのclassifierが中心 | Standard UseまたはHigh-risk Use grant | grantをproject／workflowへどう結び付けるか |
-| 監視 | real-time blockが中心 | 宣言用途から外れるpatternをoffline monitoring | 監査event、triageの責任者、escalation期限 |
-| data | 本稿では一般提供の保持条件を再評価しない | LSVP trafficは30日保持を要求 | 送信data、log、retention要件を許容できるか |
+発表時の提供先は、Anthropicのコンソール経由のAPI、Enterprise、Teamプラン。個人向けプランと第三者プラットフォームは対象外だった。APIとClaude Scienceでは利用許可を切り替えられる一方、Claude.aiとClaude Codeは初期対応では選択済みの既定許可を使う。API認証のClaude Codeは例外となる。
 
-## 二つのgrant：team向けStandard Useとproject向けHigh-risk Use
+導入を検討する研究チームは、業務で使う製品、研究案件、送信データ、管理者を対応させるとよい。同じ担当者が複数案件を扱う場合も、どの許可で処理したかを追える構成にする。これで、研究用途の拡大を日々の運用へ落とし込める。
 
-Standard Useは、Anthropicが大半のlife science R&D workflow向けと位置付けるgrantで、team全体へ広げられ、1年ごとにrenewする。発表時点ではMythos 5.1、Opus 5、Sonnet 5を対象とし、将来modelにも適用する方針だという。これはavailabilityの約束ではなく、公式発表における提供方針である。teamの多様な日常業務に付与する設計なので、実務では『誰がteam memberか』『role変更時にどう外すか』『用途が変わったとき誰が更新するか』をprovider外でも定義しておきたい。
-
-High-risk UseはStandard Useでblockされる領域に対するadd-onで、team全体ではなく単一research project単位、6か月ごとのrenewが必要とされる。発表時点でOpus 5とSonnet 5のHigh-risk grantは利用可能、Mythos向けは追加vettingを受ける少数entityに限定される。High-risk Useがbiology requestをblockするsafeguardを外す一方、cyber classifierなど他のsafeguardは残るという説明も重要だ。『high-risk grantを得たから制約がない』とは読めない。
-
-またgrant名はriskの科学的評価を代替しない。申請の承認、研究成果の再現性、研究倫理、規制遵守、agentがtoolで起こす外部作用は、それぞれ別のreview対象である。API integrationを担当するengineerは、grantの有無をfeature flagのように扱って実装を短絡させず、application自身のinput validation、tool permission、human approval、output reviewを残すべきだ。これはRecommendationである。
-
-## 誰に影響するか：API／Claude Codeを生命科学の組織workflowへ接続するteam
-
-直接の対象は、life scienceの組織でClaude API、Claude Science、Claude.ai、Claude Codeを業務へ使うteamだ。公式発表によれば、LSVPはfirst-party consoleのAPI usage、Claude for Enterprise、Team planで利用できる。third-party platformは発表時点で未対応で、individual planも未対応だ。採用検討時に『Claudeが使えるか』だけを確かめても不十分で、実際に使うsurfaceと認証方式がgrant運用に対応しているかを確認する必要がある。
-
-Claude Codeでは、初期状態でpreselected default grantだけが適用される。API authenticationを用いる場合を除き、複数grantをnativeに切り替えるAPI／Claude Scienceとの差もある。これは一人のdeveloperが複数のprojectを扱うとき、CLIの実行contextだけでgrantを安全に切り替えられると想定しないほうがよい、という意味になる。production workflowでは、環境変数名やpromptの切替で権限境界を代用せず、providerの最新仕様と組織のauthorization設計を照合する。
-
-一方、生命科学と無関係な一般的なsoftware teamは、このprogramへ移行する理由を持たない。LSVPは汎用API pricingの改定でも、Claude全体のsafeguardを解除する更新でもない。AI governanceを設計する担当者には参照例になるが、対象外のteamが『より自由なmodel access』を求めて申請するprogramとしては扱わないことが重要だ。
-
-## 今できること：申請より前にdata flowとincident対応を一枚にする
-
-対象組織が今できる最初の作業は、modelへ送るdata、modelが使うtool、生成物の保存先、grantを使うproject、管理者の対応範囲を一枚のdata-flow図として書き出すことだ。LSVPでは組織が申請で高レベルのintended useを示し、Anthropicはその安全なscopeから外れるtraffic patternを監視すると説明している。つまり、最初から『何のためのworkflowか』を短く説明できない場合は、監査、incident triage、権限見直しの基準も作れない。
-
-次に、provider側のmonitoringと自社側のlogを分ける。providerのflagは自社のsecurity incident判定を自動化するものではなく、逆に自社のapplication logだけでproviderの監視内容を再現できるわけでもない。誰が通知を受け、どの時間内に確認し、account compromiseやunexpected agent actionが疑われる場合にAPI key、tool credential、job queueをどう止めるかを決める。これはLSVPの公式実装手順ではなく、発表されたshared-responsibility modelから導く編集部のRecommendationである。
-
-live executionは、申請・承認、API key、利用料金、機密dataを伴う可能性があるため、本稿の調査では行っていない。検証を始める場合も、real dataやproduction toolをいきなり接続せず、権限を限定したsandbox、synthetic data、取り消し可能な操作から始めるのがよい。得られたoutputのscientificな正しさは、domain専門家と別の検証手順で確認する必要がある。
-
-## 保持とprivacy：30日のmonitoring要件を『trainingしない』だけで判断しない
-
-LSVPでは、潜在的なmisuseが複数sessionに分散することを想定し、real-time blockからoffline monitoringへ重心を移す。公式発表は、そのmonitoringのためLSVP trafficに30日間のdata retentionを要求すると明記する。また、保持dataはcompartmentalizedされ、model trainingには使わず、Anthropicのlife sciences research teamはaccessできないとしている。これらは2026年9月18日に確認したproviderの説明であり、独立した監査結果や法的な適合保証ではない。
-
-ここでの判断を『trainingに使わないから送ってよい』へ縮めない。保持期間、誰がaccessできるか、flagged activityのreview、organisationのcontract、データ所在地、削除要件、incident時の通知条件は別々に確認する必要がある。さらにbetaはBAA-enabled organizationで利用できないと説明されている。PHIを扱うworkflowや契約上の制約がある組織は、発表文の一節だけで可否を決めず、最新のofficial termsと自組織の専門担当者を通して確認する必要がある。
-
-EFSとのintegrationは、対象組織についてAnthropicが検討中とされる段階だ。EFSを前提にLSVPへ適用できるprivacy機能がある、または将来必ず使える、と記事からは結論できない。具体的なdata controlの期待は、利用開始前にLSVPの最新documentationと契約条件で再確認する。
-
-## まだ分からないこと：検出性能、価格、承認条件、β後の提供範囲
-
-公開発表からは、審査に必要な証跡の詳細、承認率、申請から利用開始までの時間、offline monitoringの検出精度やfalse positive率、flag後の具体的な手順は確認できない。また、LSVP固有の追加料金や、各model・surface・regionごとの実際の利用料金も、この発表だけでは確定できない。『数百organizationを最初の一週間でenrollする見込み』という記述もproviderの見通しであり、実績値ではない。
-
-High-risk UseのMythos対応は限定的で、individual planとthird-party platformへの提供は将来の拡張予定である。Claude Codeで複数grantを扱う際のportabilityも改善予定とされる。したがって、設計を一つのgrant modelへ強く依存させるより、認証情報、model routing、tool permission、audit logを薄いadapterで分離し、providerのbeta仕様が変わってもreview対象を追えるようにしておきたい。これは編集部のInferenceである。
-
-## 次に確認する条件：grant仕様・保持条件・提供surfaceが変わったとき
-
-次の確認条件は、LSVPのgeneral availability、individual planまたはthird-party platformへの対応、High-risk UseのMythos提供拡大、Claude Codeでのgrant選択・portabilityの変更、EFS integrationの正式仕様、data retentionまたはprivacy条件の更新である。いずれかが起きた場合は、availability、grant境界、監視、dataの節を再確認する。
-
-現時点の結論は明確だ。対象の生命科学teamにとってLSVPは、よりpermissiveなmodel responseを得るためだけのoptionではなく、申請した用途と監査・保持を受け入れるaccess programである。対象外のteamは導入対象として追う必要はないが、agentを高リスクdomainへ接続するとき、identity、scope、monitoring、human responseを一つのsystemとして設計する事例として読む価値がある。
+更新（2026年10月23日）：公式発表の9月30日追記に合わせ、案内先フォームは正式な参加申請ではなく、参加への関心を登録するフォームであることを明確にした。
 
 ## 制約と未検証範囲
 
-- LSVPはbetaで、対象model、grantの可搬性、individual planとthird-party platformへの提供、EFS連携は変更または拡張される可能性がある。
-- 本稿はAnthropicの公式発表と公開policyを確認したもので、申請、API keyを使う実行、課金、Claude CodeまたはAPIでのlive workflowの検証は行っていない。
-- LSVPの審査基準、監視の検出精度、誤検出率、運用時の応答時間、各組織が実際に利用できるmodel・機能・価格は公開資料だけでは確認できない。
-- PHI、BAA、生命科学の規制適合性や研究の妥当性は評価していない。該当する組織は自社のsecurity、privacy、法務、研究倫理の担当者と最新条件を照合する必要がある。
+- 2026年9月17日のβ開始発表を、10月23日に公式資料と照合した解説。参加手続き、API接続、研究作業は実行していない。
+- 研究上・医療上の妥当性や規制適合性を評価した記事ではない。製品ごとの対応はβ開始時の説明であり、利用時の契約条件に従う。
 
 ## 確認したもの
 

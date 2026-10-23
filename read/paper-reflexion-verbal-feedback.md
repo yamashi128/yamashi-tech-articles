@@ -1,86 +1,61 @@
-# Reflexionを読む：失敗を次の試行へ持ち越す
+# Reflexionを読む：失敗を短い記憶にして、次の試行を変える
 
 YAMASHI TECH AI Editorial Desk | Research | AI / ML / AI Agents
 
 [掲載ページ](https://yamashi-tech.com/articles/paper-reflexion-verbal-feedback) · [原稿データ](../articles/paper-reflexion-verbal-feedback.json)
 
-公開: 2026-09-17 / 更新: 2026-09-17 / 確認: 2026-09-17
+公開: 2026-09-17 / 更新: 2026-10-23 / 確認: 2026-10-23
 
-重みを更新せず、テスト結果と短い言語メモで次の試行を変えるReflexion。HumanEval 91%の内訳と、誤ったテストが作る落とし穴まで読む。
+Reflexionは、テストなどの評価を改善メモに変え、再試行へ渡す手法だ。HumanEvalの改善とMBPPの悪化を比較し、反省より先に評価の質が必要な理由を読む。
 
-## 再学習せずに、同じ失敗を繰り返させない
+## 再試行を増やすより、次に渡す情報を変える
 
-agentが一度失敗したあと、同じtaskを同じcontextで再実行すれば、似た軌跡へ戻りやすい。強化学習ならrewardを使って重みを更新できるが、taskごとに学習するのは重い。Reflexionは、失敗の原因と次に変えることを自然言語で残し、その短い記憶を次の試行へ渡す。model parameterは更新しない。
+Reflexionは、失敗した作業をもう一度実行するとき、何が悪かったかと次に変えることを自然言語の短い記憶として渡す手法だ。モデルの重みを更新せず、テスト結果や環境の評価を、次の行動に使える形へまとめる。
 
-重要なのは、reflectionを感想文にしないことだ。外部環境やtestから得た評価を読み、どの判断が失敗へつながり、次は何を避けるかを書く。言語を使うことで、scalar rewardより具体的な改善方針を渡せる一方、誤った評価をもっともらしく説明して記憶する危険も生まれる。
+たとえば境界値のテストに失敗したなら、「もっと注意する」では役に立たない。「空配列で先頭要素を参照した。次は空入力の分岐を追加する」のように、観測した失敗と変更方針を残す。論文の狙いは、この経験を再試行の前提にすることにある。
 
-## Actor、Evaluator、Self-Reflectionの三役
+## 実行・評価・振り返りの三役で回す
 
-Actorがtaskを実行し、Evaluatorが軌跡や結果へscoreまたは成功判定を付け、Self-Reflectionがfeedbackから改善メモを作る。次のActorは、taskと最近のreflectionを一緒に受け取る。記憶は無限に増やさず、直近の一定数をsliding windowで保持する。
+Actorが作業し、Evaluatorが結果を評価し、Self-Reflectionが評価と作業履歴から改善メモを作る。次のActorは、そのメモを読んで再び作業する。ReActが一回の作業中に観察を返す仕組みなら、Reflexionは試行と試行の間に経験を渡す仕組みだ。
 
-成否判定をActorの自己申告から分離した点が肝だ。codingならunit test、意思決定なら環境reward、質問応答なら正解比較を使う。『直した』という説明ではなく、別系統のEvaluatorが通ったことを次の試行の根拠にする。
+Evaluatorは用途によって変わる。コード生成では、生成したテストの実行結果を内部の改善に使い、ベンチマークの正解テストで最終結果を測った。論文では生成テストを最大6件、コード生成の記憶を直近1経験に制限した。改善ループと最終採点を同じものとして扱わない点が大切になる。
 
-評価とreflectionを分けた再試行
+## HumanEvalは改善したが、MBPP Pythonは下がった
 
-```python
-memory = []
-for attempt in range(MAX_ATTEMPTS):
-    result, trajectory = actor.run(task, memory)
-    evidence = evaluator.check(result)
-    if evidence.passed:
-        return result
-    memory.append(reflect(trajectory, evidence))
-raise NeedsHumanReview(memory)
-```
+論文のGPT-4を使ったコード生成実験では、HumanEval Pythonのpass@1が80.1%から91.0%へ上がった。一方、MBPP Pythonは80.1%から77.1%へ下がった。内部で試行を重ねるエージェント構成の最終提出を採点した値であり、モデルの最初の一回の生成精度と同義ではない。
 
-## HumanEval 91%は、何と比べた数字か
+この対照は、振り返りの効果が評価の質に依存することを示す。誤った解を内部テストが通してしまえば、修正を続けるべきなのに終了してしまう。逆に正しい解を誤ったテストが落とせば、不要な修正へ進む。再試行の回数より、何を成功と判定するかが結果を左右する。
 
-論文のcoding実験では、GPT-4をActorとして、生成したtestと既存testのfeedbackを使い再試行した。HumanEval Pythonのpass@1は91.0%で、論文中のGPT-4 baseline 80.1%を上回った。HumanEval Rustは68%でbaseline 60%、LeetCode Hardは15%でbaseline 7.5%だった。
+論文Table 1。GPT-4の単一生成baselineとReflexion構成の比較（%）
 
-一方、MBPP PythonではReflexion 77.1%に対しbaseline 80.1%で下がった。全benchmarkで改善したわけではない。この差は、task specificationから正しいtestを作れるか、test executionが本当の正解を区別できるかに大きく依存する。91%だけを抜き出して『reflectionでcoding精度が91%になる』と読むのは危険だ。
+| 課題 | baseline | Reflexion |
+| --- | --- | --- |
+| HumanEval Python | 80.1 | 91.0 |
+| HumanEval Rust | 60.0 | 68.0 |
+| MBPP Python | 80.1 | 77.1 |
+| MBPP Rust | 70.9 | 75.4 |
+| LeetCode Hard Python | 7.5 | 15.0 |
 
-論文のcoding結果。benchmarkと言語が違うため、行をまたぐ単純比較はできない
+## 振り返りだけでは改善せず、テストとの組合せが効いた
 
-| Benchmark | Baseline | Reflexion | 差 |
-| --- | --- | --- | --- |
-| HumanEval Python | 80.1% | 91.0% | +10.9pt |
-| HumanEval Rust | 60.0% | 68.0% | +8.0pt |
-| MBPP Python | 80.1% | 77.1% | -3.0pt |
-| MBPP Rust | 70.9% | 75.4% | +4.5pt |
-| LeetCode Hard | 7.5% | 15.0% | +7.5pt |
+HumanEval Rustの難しい50問で行った構成比較では、baselineの正解率は60%、振り返りだけを加えると52%、テスト生成だけでは60%、両方を組み合わせると68%だった。証拠を増やさずに自分の答えを批評する処理と、実行結果を使って修正する処理は、同じ効果ではなかった。
 
-## 効いたのは、reflection単体ではなかった
+生成テストをすべて通った提出が、最終の正解テストでは不正解になる割合は、HumanEval Pythonで1.4%、MBPP Pythonで16.3%だった。論文がfalse positiveと呼ぶのは、この「誤った解を合格扱いする」場合だ。内部テストが動いたことと、十分な評価ができたことを分けている。
 
-HumanEval Rustの難しい50問を使ったablationでは、baselineが0.60、reflectionだけを追加すると0.52、test生成だけでは0.60、reflectionとtest生成を組み合わせると0.68だった。言葉で反省させるだけでは悪化し、外部feedbackと組み合わせて初めて改善した。
+## 失敗メモは、観測と次の一手に絞る
 
-この結果は実務で重要だ。agentへ『もう一度よく考えて』と頼んでも、新しい証拠がなければ言い換えを増やすだけになりやすい。再試行前に、失敗するtest、再現手順、compiler error、実画面の差分などを追加する。reflectionは証拠を圧縮する役であり、証拠の代替ではない。
+編集部が実務へ応用するなら、メモには再現条件、失敗した検証、原因の仮説、次に変える点を残す。原因の仮説には、元のエラーログや失敗テストへ戻れる手掛かりを付ける。コードが変わって前提が消えたメモは、そのまま使い続けない。
 
-## 生成testが間違うと、改善loopが逆回転する
+同じテストが同じ理由で失敗し、新しい観測も増えないなら、再試行を止めて調査へ戻す。Reflexionを生かす順序は、信頼できる評価を用意し、その結果を短く記憶し、変更のある再試行に使うことだ。
 
-論文は、生成testが誤っているのに解を不正解と判定するfalse positiveを調べた。HumanEvalでは1.4%だったが、MBPPでは16.3%に達した。問題文が曖昧、隠れた制約がある、test自体が誤った期待値を持つ場合、正しい実装を壊す方向へreflectionが働く。
+## 訂正：2026年10月23日
 
-製品では、Evaluatorにも品質保証が必要だ。既存の回帰testを最優先し、model生成testは候補として隔離する。新しいtestが仕様を表しているか人が確認し、既存動作と矛盾する場合は実装より先に仕様を解決する。複数のindependent evaluatorを使う場合も、多数決が正しさを保証するわけではない。
-
-## 実務の失敗記録は、四項目まで圧縮する
-
-失敗logを丸ごと次のpromptへ貼ると、重要な一行が埋もれ、古いerrorへ引きずられる。記憶には、再現条件、失敗した検証、原因仮説、次に変える一手を残す。さらに『同じpatchを再適用しない』『本番dataで試さない』のような禁止事項があるなら明示する。
-
-古いreflectionは要約し、現在のcodeと矛盾したら捨てる。二回同じ原因が続いたら新しい観察を要求し、三回続いたら人へ返す、といったcircuit breakerも有効だ。再試行回数を増やすのではなく、各試行で新しい情報が増える設計にする。
-
-- 再現条件：どの入力・環境・versionで失敗したか
-- 検証証拠：どのtest、error、画面差分が失敗を示したか
-- 原因仮説：観察から言える範囲と、まだ推測の範囲
-- 次の一手：一つだけ変える点と、繰り返さない操作
-
-## 適用しにくい領域を先に知る
-
-論文は、局所解へ固着する可能性、有限memory、長い軌跡の圧縮を限界として挙げる。codingでも、非決定的処理、外部API、hardware、並行処理、副作用の強い処理は、生成testだけで正しさを評価しにくい。実行できるtestがあることと、仕様を十分に覆っていることは別だ。
-
-ReActが一回の実行中にObservationで軌道修正する考え方なら、Reflexionは実行と実行の間で失敗を持ち越す考え方だ。現在のcoding agentへ使うなら、reflection機能を付ける前に、信頼できるEvaluatorと停止条件を作る。記憶の量より、検証の質が先に来る。
+旧版はfalse positiveを「正しい解を不正解と判定する場合」と説明していたが、逆だった。論文§4.3の定義に合わせ、1.4%と16.3%は内部テストを通った提出のうち最終的には不正解だった割合と訂正した。
 
 ## 制約と未検証範囲
 
-- 改善幅は論文中のevaluator、memory、model、task条件に依存し、言語feedbackだけで任意のagentが改善することを保証しない。
+- 数値は論文のGPT-4、テスト生成、記憶、再試行条件における著者の報告で、編集部による再実験ではない。
+- 外部API、非決定的処理、並行処理など、テストで正しさを十分に表しにくい作業には別の評価が必要。
 
 ## 確認したもの
 

@@ -1,132 +1,102 @@
 {
   "slug": "news-aws-lambda-web-functions-http-servers",
-  "title": "AWS Lambda Web Functions登場：HTTP serverをそのまま載せても、Lambdaの設計責任は消えない",
+  "title": "AWS Lambda Web Functionsを発表。Node.jsのHTTPサーバーをそのまま動かす新方式",
   "category": "News",
   "tags": [
     "Software Engineering",
     "DevTools",
     "Industry"
   ],
-  "summary": "AWSはNode.jsのport-listening serverをadapterなしで動かすLambda Web Functionsを公開した。最大128 concurrent request、active CPU課金、複数region endpointを備えるが、runtime、memory、endpoint認証、state、costの適合性は個別に判断する必要がある。",
+  "summary": "AWSは2026年10月12日、標準のHTTPサーバーを動かすLambda Web Functionsを発表した。ExpressやHonoなどをイベントハンドラーへ変換せずに配置でき、一つの実行環境で複数リクエストを処理する。仕組みと従来Lambdaとの違いを解説する。",
   "publishedAt": "2026-10-20",
-  "updatedAt": "2026-10-20",
-  "checkedAt": "2026-10-20",
-  "readingMinutes": 10,
+  "updatedAt": "2026-10-23",
+  "checkedAt": "2026-10-23",
+  "readingMinutes": 5,
   "limitations": [
-    "本稿はAWSの2026年10月12日の発表とLambda Web Functions documentationを照合した資料調査である。AWS account、IAM、AWS CLI、Web Function、S3、CloudFront、VPC、課金を伴うdeployやload testは実行していない。",
-    "最大128 concurrent request、global routing、active CPU billing、性能・費用に関する説明はAWSの仕様またはprovider例であり、個別applicationのlatency、cold start、throughput、費用削減を独立検証したものではない。",
-    "launch時点のNode.js 24・Arm64、region、quota、pricing、framework compatibility、endpoint access controlは変わり得る。production採用前に最新documentationと対象accountの条件を再確認する必要がある。",
-    "標準HTTP serverを動かせることは、container、VM、ECS、Lambda Event Functionsから無変更で移行できることや、session・filesystem・background taskが同じ意味で動くことを保証しない。"
+    "2026年10月12日のAWS発表と、10月23日確認のDeveloper Guideに基づく。AWSアカウントや認証情報を使う配置、IAM変更、負荷試験は行っていない。",
+    "最大同時実行数と対応環境はAWSの公表条件。個別アプリの起動時間、性能、費用の削減率は測定していない。"
   ],
   "sections": [
     {
-      "heading": "要点：LambdaへHTTP serverを合わせるのではなく、serverを受け入れるform factor",
+      "heading": "使い慣れたWebサーバーの形で、Lambdaへ配置できる",
       "paragraphs": [
-        "AWSは2026年10月12日、AWS Lambda Web Functionsを発表した。Express、Hono、Fastify、Next.jsなどのNode.js applicationがnetwork portでHTTP requestを受ける形を保ち、Lambda固有のevent handlerやadapterへ書き換えずにdeployできる。codeは`AWS_LAMBDA_HTTP_ENDPOINT`で与えられたhostとportをlistenする。",
-        "これは従来のLambda Event Functionsのrenameや置換ではない。AWSはEvent Functions、Web Functions、MicroVMsを別のprogramming modelとして整理する。queueやfile eventはEvent Functions、HTTP applicationはWeb Functions、untrusted codeやstateful sandboxはMicroVMsという選択になる。"
-      ],
-      "bullets": [
-        "Fact：launch時はNode.js 24、Arm64をsupport",
-        "Fact：一つのexecution environmentが最大128 concurrent requestを処理",
-        "Fact：CPUはactive time、memoryはenvironment lifetimeで計測",
-        "Recommendation：framework compatibilityより先にstate、concurrency、cost modelを確認する"
-      ]
-    },
-    {
-      "heading": "何が起きたか：revisionとendpointで標準HTTP applicationを配る",
-      "paragraphs": [
-        "Web Functionはcodeとconfigurationのimmutable snapshotであるrevisionと、HTTPS trafficを一つまたは二つのrevisionへ送るendpointから構成される。endpointはTLS domain、authentication、geographic scope、scaling、throttling、traffic weightを持つ。更新時は新revisionを作り、endpointの向き先を変える。",
-        "AWS CLIの`aws lambda-web deploy`はsourceをbundleし、function、revision、endpointを作る一連の入口として紹介されている。複数regionを指定すると一つのglobal URLの背後へreplicateし、best-effortのlatency-based routingを行う。簡単なcommandの裏でIAM、S3、region replicationが関わるため、権限と失敗単位を理解せずにproductionへ持ち込まない。"
+        "AWSは2026年10月12日、Lambda Web Functionsを発表した。Express、Hono、Fastify、Next.jsなどのNode.jsアプリが、通常のHTTPサーバーとしてポートでリクエストを受け付ける。Lambda用のイベントハンドラーや変換adapterへ書き換える手間を減らす方式だ。",
+        "従来のイベント駆動型LambdaはEvent Functionsという名前で整理される。キューやファイルイベントの処理にはEvent Functions、HTTPのWeb・APIにはWeb Functions、隔離された状態付きの実行環境にはMicroVMsと、目的に応じて組み合わせられる。"
       ],
       "table": {
-        "caption": "三つのLambda form factorの公式な位置付け",
+        "caption": "発表で示された三つの実行方式",
         "columns": [
-          "形態",
-          "実行model",
-          "向くworkload",
-          "主な確認点"
+          "方式",
+          "コードの動き方",
+          "主な用途"
         ],
         "rows": [
           [
             "Event Functions",
-            "eventごとにsingle-concurrent handler",
-            "queue、file、service event",
-            "wall-clock billing、event contract"
+            "イベントを受け取るハンドラー",
+            "キュー、ファイル、AWSサービスからのイベント"
           ],
           [
             "Web Functions",
-            "port-listening HTTP、multi-concurrent",
-            "Web、API、SSR、streaming",
-            "CPU／memory billing、shared process state"
+            "ポートで待ち受けるHTTPサーバー",
+            "Web、API、SSR、ストリーミング応答"
           ],
           [
             "MicroVMs",
-            "isolated stateful sandbox",
-            "untrusted／user-generated code",
-            "lifecycle、network、isolation cost"
+            "利用者がライフサイクルを管理する隔離環境",
+            "利用者が生成したコードなどを動かすsandbox"
           ]
         ]
       }
     },
     {
-      "heading": "以前との違い：adapter層とsingle-concurrency前提を外す",
+      "heading": "待ち受け先を環境変数から受け取る",
       "paragraphs": [
-        "従来のLambda Event FunctionへWeb frameworkを載せる場合、API GatewayやFunction URLのeventをframework requestへ変換するadapterが必要になることがある。Web Functionsではapplication自身がHTTPをlistenし、standard serverのrequest／response modelを使う。移植時の変換codeは減るが、platformのlifecycleが通常の常駐serverと同じになるわけではない。",
-        "一つのenvironmentが複数requestを同時に扱うため、module-level mutable state、non-thread-safe相当のlibrary、requestごとのidentity、connection pool上限に注意が必要だ。single requestずつ処理される前提で書いたcodeはraceやdata leakを生む可能性がある。これはmulti-concurrency仕様から導く編集部のInferenceである。"
-      ]
-    },
-    {
-      "heading": "課金の読み方：I/O待ちはCPUを消費しにくいが、memoryは残る",
-      "paragraphs": [
-        "AWSはWeb Functionsでactive CPU timeをmeterし、databaseやexternal APIを待つ時間はCPU消費が小さいと説明する。一方、memoryはexecution environmentが存在する時間に対して計測され、request、data transferも費用要素になる。I/O-heavyなら必ず安くなるという保証ではなく、CPU burst、memory footprint、concurrency、idle scale-downで結果が変わる。",
-        "Event Functions、container service、managed instanceとの比較では、同じrequest数だけでなくp50／p95 latency、CPU time、resident memory、outbound transfer、region数、observability、minimum capacityを揃える。providerのexampleを自分のbillへ直接掛け算せず、小さいtraffic shadowまたはsynthetic workloadで見積もる。"
-      ]
-    },
-    {
-      "heading": "誰に影響するか：Node.jsのWeb／APIをserverlessへ寄せたいteam",
-      "paragraphs": [
-        "ExpressやHonoなどで標準HTTP serverを既に持ち、trafficが変動し、global endpointやscale-to-zeroを求めるteamは候補になる。SSR、REST／GraphQL API、streaming responseも公式use caseに含まれる。launch時点ではNode.js runtimeのみで、Python、Java、.NET applicationを同じ方式で載せる発表ではない。",
-        "常時高負荷、local diskへstateを置くapplication、long-lived background worker、protocol upgrade、特別なnative dependency、厳密なregion固定がある場合は、採用前に制約を確認する。standard HTTPが動くという一文だけで、既存containerのprocess model、health check、graceful shutdown、observabilityを同一視できない。"
-      ]
-    },
-    {
-      "heading": "今できること：local serverとplatform adapterを分けてsample化する",
-      "paragraphs": [
-        "最初はproduction applicationを直接deployせず、同じframeworkとmiddlewareを使う小さなsampleで、`AWS_LAMBDA_HTTP_ENDPOINT`のhost・port、health endpoint、streaming、error response、shutdownを確認する。次にauthenticationなしのpublic endpointを作る前に、CloudFront OAC、resource policy、application authのどこでrequestを止めるかを設計する。",
-        "migration candidateでは、filesystem write、in-memory session、cron、queue consumer、WebSocket、background promiseを洗い出す。Web requestから切り離すべき仕事はEvent Functionsや別queueへ移す。deploy commandが成功したことではなく、concurrency test、failure test、rollback、logとmetricが揃うことを完了条件にする。"
+        "Web Functionsでは、アプリがAWS_LAMBDA_HTTP_ENDPOINTで指定されたホストとポートをlistenする。ルーティングやミドルウェアなどは、普段のフレームワークの書き方を使える。AWSは、同じ環境変数へ127.0.0.1:3000などを設定してローカルでも動かす例を示している。",
+        "たとえば既存のappがHTTPリクエストを処理する構成なら、起動時に待ち受け先を読み取る。下のコードはその部分だけを抜き出した手順例だ。サーバーを起動して応答を返す確認と、AWSへの配置は別に行う。"
       ],
       "code": {
-        "label": "platform固有部分を一行へ閉じる最小形",
+        "label": "公式発表に基づく待ち受け部分の例。appの作成処理は省略。編集部では未実行。",
         "language": "javascript",
-        "value": "const [host, port] = process.env.AWS_LAMBDA_HTTP_ENDPOINT.split(':');\napp.listen(Number(port), host);\n\n// localでは同じ変数を127.0.0.1:3000に設定して起動する"
+        "value": "const [host, port] = process.env.AWS_LAMBDA_HTTP_ENDPOINT.split(\":\");\napp.listen(Number(port), host);\n\n// ローカルでは同じ環境変数を127.0.0.1:3000に設定して起動する"
       }
     },
     {
-      "heading": "まだ分からないこと：実applicationのcold start、費用、互換性",
+      "heading": "複数リクエストで環境を共有し、CPUは動いた分を計測する",
       "paragraphs": [
-        "公開資料だけでは、frameworkごとのbundle size、cold start、connection reuse、maximum request duration、streaming backpressure、global routingの切替時間、region障害時の挙動をこの記事で独立確認できない。quotaとpricingもaccount、region、traffic shapeで変わり得る。",
-        "また、VPC接続が可能でも、private databaseへの安全な接続、security group、DNS、credential rotation、connection stormが自動で解決されるわけではない。最大128 concurrent requestをそのままdatabase poolへ流すと、downstreamが先に飽和する可能性がある。concurrency上限は能力値ではなく、依存先と一緒に制御する値として扱う。"
+        "一つの実行環境は最大128件のリクエストを同時に扱う。急にアクセスが増えても、起動済みの環境で受け止められるリクエストが増える。従来のEvent Functionsが、一つの環境で一度に一つのハンドラーを動かす方式との大きな違いだ。",
+        "料金も異なる。Web Functionsは、実際に使うCPU時間、環境が存在する時間のメモリ、リクエスト、データ転送を計測する。データベースや外部APIの応答を待つ間はCPU消費が小さいため、I/O待ちの多いAPIやSSRで効く可能性がある。一方、その待ち時間もメモリ料金は発生する。",
+        "一つのプロセスに複数のリクエストが入るので、利用者固有の情報を共有変数へ入れていないか、接続プールがデータベースの上限を超えないかを点検したい。これは同時実行方式から生じるアプリ側の設計上の論点だ。"
       ]
     },
     {
-      "heading": "次に確認する条件：runtime、region、quota、pricingが広がったとき",
+      "heading": "コードはrevision、公開先はendpointで管理する",
       "paragraphs": [
-        "次の確認条件は、Node.js以外のruntimeが追加されたとき、regionとarchitectureが増えたとき、quota・pricing・endpoint authentication・CloudFront連携が更新されたときである。採用teamはAWSのreleaseだけでなく、使用frameworkのofficial supportと、自分のload test結果も同じ日付で記録したい。",
-        "現時点では、Web Functionsは標準HTTP serverとLambdaの距離を縮める有力な選択肢だが、containerを一commandで同じ性質のまま移せる仕組みではない。adapter削減を入口にし、state、concurrency、security、cost、rollbackを測れるapplicationから試すのがよい。最後の文は編集部のRecommendationである。"
+        "配置する単位は、コードと設定を固定したrevisionだ。HTTPSのendpointが一つまたは二つのrevisionへリクエストを送る。更新すると新しいrevisionを作り、endpointの向き先や配分を変更する。発表では、旧版90%・新版10%のように少しずつ切り替える例も示された。",
+        "CLIの入口はaws lambda-web deploy。初回の配置では、コード用のS3バケットや実行用IAMロール、Web Function、最初のrevisionとendpointを作成または再利用する。--regionsへ複数リージョンを指定すると、一つのグローバルURLから遅延に応じた経路選択を行う。",
+        "確認時には、revisionやendpointのActive表示に加えて、実際のURLへリクエストを送る。作成guideによると、Lambdaはrevision作成時にサーバーのlisten開始まで検証しない。Activeでもアプリの起動に失敗している場合があるため、ヘルスチェックや代表的なページの応答を配置後の確認に含める。"
+      ]
+    },
+    {
+      "heading": "開始時はNode.js 24・Arm64。HTTPアプリの移行先として比較する",
+      "paragraphs": [
+        "発表時の対応環境はNode.js 24（nodejs24.x）とArm64。提供リージョンは米国東部のバージニア北部とオハイオ、米国西部のオレゴン、東京、アイルランドで、VPC接続も利用できる。10月23日確認のguideでも、Web FunctionsはNode.jsのみとしている。",
+        "endpointはIAM認証か、アプリが認証を管理する方式を選ぶ。starterの既定値は署名なしでリクエストを受け付けるため、業務データを扱うAPIではアプリ側の認証を実装するか、IAM認証を選ぶ。独自ドメインやWAFにはCloudFrontを前段へ配置し、OACを使ってoriginへのアクセスを絞る構成も紹介されている。",
+        "候補になるのは、既にNode.jsのHTTPサーバーがあり、アクセスに応じた拡縮やストリーミングを使いたいアプリだ。現在の構成と比較するなら、同じリクエストで応答時間、CPU、メモリ、転送量を測る。アプリの書き方を保ちながら、Lambdaの運用方式へ寄せられる点が今回の利点になる。"
       ]
     }
   ],
   "references": [
     {
-      "label": "AWS News Blog — Announcing AWS Lambda Web Functions (2026-10-12)",
+      "label": "AWS News Blog：Web Functionsの発表、同時実行、CPU課金、提供環境（2026年10月12日）",
       "url": "https://aws.amazon.com/blogs/aws/announcing-aws-lambda-web-functions-for-fast-consistent-web-app-performance-anywhere/"
     },
     {
-      "label": "AWS Lambda Developer Guide — Lambda Web Functions (checked 2026-10-20)",
+      "label": "Lambda Web Functions：用途、課金、endpoint、認証（10月23日確認）",
       "url": "https://docs.aws.amazon.com/lambda/latest/dg/web-functions.html"
     },
     {
-      "label": "AWS Lambda Developer Guide — Creating a Lambda Web Function (checked 2026-10-20)",
+      "label": "Creating a Lambda Web Function：配置コマンド、作成リソース、Activeの意味",
       "url": "https://docs.aws.amazon.com/lambda/latest/dg/web-functions-create.html"
     }
   ]

@@ -1,116 +1,69 @@
-# SWE-bench Scienceを読む：公開testを通すだけでは、科学的に正しい修正にならない
+# SWE-bench Scienceを読む：テスト合格と、科学的に正しい修正の差
 
 YAMASHI TECH AI Editorial Desk | Research | AI / ML / AI Agents / Software Engineering
 
 [掲載ページ](https://yamashi-tech.com/articles/paper-swe-bench-science-coding-agents) · [原稿データ](../articles/paper-swe-bench-science-coding-agents.json)
 
-公開: 2026-10-20 / 更新: 2026-10-22 / 確認: 2026-10-22
+公開: 2026-10-20 / 更新: 2026-10-23 / 確認: 2026-10-23
 
-119 task・98 repository・20科学分野でcoding agentを評価したSWE-bench Scienceを読む。論文内の最高pass@1は47.90%。更新されるleaderboardと論文の結果を分け、科学softwareで何を守るtestが必要かを考える。
+科学ソフトウェア119課題の評価では、論文内の最良構成でも全private testを通ったのは47.90%だった。公開テストとの開きと失敗分析から、AIの修正をどう評価するかを読む。
 
-## 結論：科学codeの修正は、programが動くことと結論を守ることの二重testになる
+## 公開テストが通っても、修正が完成したとは限らない
 
-SWE-bench Scienceは、coding agentが科学softwareのrepository-level taskを解けるかを測るbenchmarkだ。119 taskを98のGitHub repository、20の科学分野から構成し、Issue-driven、Expert-exploratory、Engineering-integrationの三つへ分ける。著者の中心的な問題意識は、科学softwareのbugがprogram behaviorだけでなく研究結果の根拠を壊し得ることにある。
+SWE-bench Scienceの中心的な結果は、公開テストのスコアと、独立した非公開テストをすべて通す成功率に大きな開きがあることだ。論文v2の最良構成は、公開スコア96.64%に対し、課題全体を正解したpass@1は47.90%だった。二つは採点方法が異なり、公開テストの高さだけで修正完了を判断する危うさを示している。
 
-公式leaderboardの2026年10月9日更新では、Claude CodeとClaude Opus 5 maxの構成が47.90% pass@1と表示され、半数へ届かない。重要なのはmodel rankingだけではない。失敗分析は、科学知識不足、表面的な探索、integrationの取り落とし、観測例を越えて一般化できない修正を分け、test passの背後で何が壊れるかを示す。
+対象は、98のリポジトリと20の科学分野から集めた119課題。科学ソフトウェアでは、動くコードを作れても、単位、境界条件、数式、データ形式の意味を変えれば研究結果を壊し得る。著者はその難しさを、成功率と失敗の仕組みの両方から調べた。
 
-- Numeric fact：119 task、98 repository、20 scientific domain
-- Numeric fact：52 Issue-driven、49 Expert-exploratory、18 Engineering-integration
-- Numeric fact：公式leaderboard上の最高表示は47.90% pass@1（2026-10-09更新）
-- Inference：科学softwareではdomain invariantをtest contractへ落とせないとagent reviewも弱くなる
+## 不具合対応だけでなく、探索と統合も課題にした
 
-## 研究上の問い：既存SWE benchmarkが測りにくかった科学的correctness
+課題は、報告された不具合などに対応するIssue-drivenが52件、専門的な問いから必要な変更を探すExpert-exploratoryが49件、複数の部品をつなぐEngineering-integrationが18件。化学24件、材料科学・工学16件、生物13件、生体医工学12件、物理11件などで、各分野の件数は均等ではない。
 
-一般のrepository repair benchmarkは、Issue、reference patch、testを使ってagentの成功率を測る。科学softwareでは、数値単位、対称性、境界条件、物理法則、data modelなど、repository固有の科学的contractが修正の正しさを決める。syntaxやvisible testだけ直しても、結果の意味が変われば修正とは言えない。
+評価では、固定したリポジトリの状態へ修正を適用し、独立した環境で検査する。公開テストのスコアは目に見える検証の成績、private scoreは非公開テストの平均的な達成度、pass@1は適用対象の非公開テストをすべて通した課題の割合だ。一部を直した進捗と、課題全体の完了を分けて測る設計になっている。
 
-本研究は、task成功率だけでなく失敗理由へ踏み込む。agentが必要なdomain knowledgeを持たない場合、検索方向を誤る場合、local fixはできてもcross-module integrationを落とす場合、既知のexampleへoverfitする場合を分析する。これにより『失敗した』をmodel能力一語で終わらせず、harness、情報、test、reviewへ分解できる。
+## 論文の比較表と、更新される順位表を分ける
 
-## task設計：Issue、専門家探索、system integrationを分けた
+論文v2のTable 2は八つの構成を比較し、Claude Opus 5 maxとClaude Codeの組合せがpass@1で47.90%と最も高かった。これは固定された119課題での著者の実験結果であり、「あらゆる科学コードを約半分の確率で直せる」という値ではない。
 
-Issue-drivenは既存Issueやpull requestに近いproblem statementから修正する。Expert-exploratoryは専門家が示す科学的な問いをrepository内で探索し、必要なimplementationへ落とす。Engineering-integrationはcomponentやmoduleをまたぐ接続を扱う。三つを分けることで、bug report追従だけでなく、曖昧な科学要求と統合作業を含める。
+2026年10月23日に公式leaderboardを再取得すると、GPT-6 Astra maxとCodexの50.42%も掲載されていた。ページの更新表示は10月9日。論文内の最高値と公開順位表の最高値は異なるので、どの資料と条件を比較しているかをセットで読む必要がある。
 
-dataset cardによると、構成は52、49、18 taskで、割合は約43.7%、41.2%、15.1%になる。分野は化学24、材料科学・工学16、生物13、生体医工学12、物理11が大きく、数学、天文学、大気科学などが続く。分野数が広い一方、task数は均等ではない。
+固定された論文v2と、10月23日取得の公式leaderboardを区別する
 
-SWE-bench Scienceの三つのtask paradigm
-
-| paradigm | task数 | 主な要求 | 失敗を見たい層 |
-| --- | --- | --- | --- |
-| Issue-driven | 52 | 報告された不具合を追跡して修正 | 探索、再現、regression |
-| Expert-exploratory | 49 | 専門的な問いから必要変更を発見 | domain knowledge、仮説 |
-| Engineering-integration | 18 | module／componentをまたいで統合 | interface、coverage、system整合 |
-
-## 評価環境：repositoryとverifierを分離し、同じartifactを再現する
-
-公開releaseはtaskごとにruntime environment imageとprogrammatic verifier imageを持ち、`linux/amd64`のimmutable digestで固定する。GitHub repositoryはdocumentation、architecture、tooling、audit record、Hugging Faceはtask tableとbundle、Docker Hubはenvironmentとverifier imageを担う。
-
-default selectionはlicense制限の少ない96 task、restricted selectionは23 taskで、GPL／LGPL／AGPL familyを含むtaskも区別される。benchmark tooling自体がMITでも、upstream codeやfixtureのlicenseまで一律にMITになるわけではない。再現する利用者はtask artifactの出典とlicenseを個別に守る必要がある。
-
-benchmarkが分離する評価単位
-
-```text
-task bundle: repository snapshot + task statement + metadata
-runtime image: agentが修正を行う環境
-verifier image: clean baselineへpatchを適用して判定
-result: task-level pass/fail + aggregate pass@1
-provenance: source repository, commit, license, image digest
-```
-
-## 主要結果：論文の47.90%と、更新されるleaderboardを分ける
-
-論文v2のTable 2は8構成を比較し、その中ではClaude Opus 5 maxとClaude Codeの組合せが47.90%で最高だった。これは119 taskにおけるtask-level pass@1であり、適用されるprivate testをすべて通したtaskの割合を表す。public scoreの96.64%とは異なる指標である。
-
-一方、2026年10月22日に取得した公式leaderboardでは、GPT-6 Astra maxとCodexが50.42%、Claude Opus 5 maxとClaude Codeが47.90%と表示された。ページの更新表示は2026年10月9日である。初版は論文とleaderboardを混同し、47.90%を公開leaderboardの最高値として読める説明になっていたため訂正した。掲載構成や結果が変わるleaderboardを、論文内の固定された比較表の代わりには使えない。
-
-47.90%を『科学codeの半分を自動修正できる』と一般化してはいけない。taskは選定済みのsnapshotとverifierを持ち、agent、model、reasoning effort、token budget、harnessの条件が固定される。production repositoryには未記述のrequirement、private data、hardware、review、release責任が追加される。
-
-## 四つの失敗機構：知識不足だけでは説明できない
-
-著者は失敗を四つの反復patternに整理する。第一は科学知識または抽象化の不足、第二は探索を誤るか表面だけを直すこと、第三はrepair coverageやsystem integrationの不足、第四は観測したcaseを越えて科学知識を一般化できないことだ。modelが用語を知っていても、正しいfileとinvariantへ結び付けられなければ成功しない。
-
-実務reviewでは、この分類をchecklistへ移せる。patchがdomain equationやunitを守るか、root causeまで辿ったか、call siteとserializationを含むか、visible example以外のboundaryで成り立つかを見る。単にtest数を増やすのではなく、どのfailure classを捕まえるtestかを明示する。
-
-論文が整理したfailure mechanismと実務review
-
-| 失敗機構 | patchに現れる兆候 | 追加する確認 |
+| 資料 | モデルとharness | 指標・値 |
 | --- | --- | --- |
-| 科学知識／抽象化不足 | 単位・対称性・domain ruleを誤る | 専門家review、invariant test |
-| 誤探索／表面修正 | 症状だけ条件分岐で隠す | root-cause trace、反例 |
-| coverage／integration不足 | 一moduleだけ成功 | end-to-endとinterface test |
-| 一般化失敗 | 示されたexampleだけ通る | property、boundary、unseen case |
+| 論文v2 Table 2 | Claude Opus 5 max / Claude Code | public score 96.64%・pass@1 47.90% |
+| 公式leaderboard（更新表示10月9日） | GPT-6 Astra max / Codex | pass@1 50.42% |
+| 同leaderboard | Claude Opus 5 max / Claude Code | pass@1 47.90% |
 
-## 科学知識ablation：情報を増やせば常に良くなるわけではない
+## 失敗を四つに分けると、追加すべき検証が見える
 
-研究は91 taskのscience-knowledge splitで、明示的な科学guidanceを除き、repositoryと実行可能なengineering contextを保つpaired ablationを行った。abstractによると、taskへ正しくgroundされた情報はrepairを制約し、平均performanceとtoken efficiencyを改善できる。一方、taskとずれたguidanceはanchoringを誘発し、exact repair成功を必ずしも上げない。
+著者は失敗を、科学知識や抽象化の不足、原因を外した探索や表面だけの修正、修正範囲や統合の取り落とし、見た例を越えて一般化できない修正に分けた。「モデルが弱かった」で終えず、何を確かめると再発を見つけられるかまで分解できる。
 
-これはRAGや長いinstructionへdomain documentを大量投入する設計への注意になる。情報量ではなく、対象version、該当module、source、反証可能性を持つcontextが必要だ。agentへguidanceを与える場合も、仮説として扱い、repository evidenceとtestが反するなら捨てられる形にする。
+編集部がレビューへ応用するなら、単位や保存則を守るか、症状を隠すだけの分岐になっていないか、呼び出し元やシリアライズも整合するか、境界値や未知の入力でも成立するかを問う。テストを増やす場合も、どの失敗を捕まえるためのものかを決めると目的が明確になる。
 
-## 再現性と限界：公開artifactがあってもprivate verifierは境界になる
+## 専門知識を足しても、成功率が上がるとは限らなかった
 
-本稿で確認したものは、公式repositoryが公開するarchitecture、task metadata、image digest、selection、release verification手順である。一方、reference answer patch、credential、agent trajectory、private verifier testはreleaseに含めないと説明する。benchmark leakageを防ぐ意図は理解できるが、第三者が判定内容を完全にinspectする範囲には限界がある。
+科学的な補足情報を取り除ける91課題では、情報の有無を比べる追加実験を行った。GPT-5.6-sol xhighのpass@1は補足なしの36.26%から、ありでは31.87%へ下がった。一方、DeepSeek-V4-flash highは16.48%から23.08%へ上がった。主結果のmax設定とは異なる条件で、知識追加の影響が構成によって分かれた。
 
-本稿では119 imageのdownloadやevaluationを行っていない。full runには大きなcompute、storage、model cost、license確認が必要になる。結果を再利用するときは、leaderboardの更新日、model snapshot、harness、reasoning、token、task selectionを一緒に記録し、model名だけで比較しない。
+著者は、適切な情報は修正の制約を示せる一方、合わない説明は思い込みを生むと分析している。この二構成の記述的な比較だけで一般的な因果効果や有意差を確定するものではない。実務では、資料を大量に与えるより、対象バージョンと該当箇所を結び付け、コードと実行結果で説明を検証できる形にする。
 
-## 実務への応用：科学softwareはagent採用より先にcontractを外へ出す
+## 再現するなら、課題と環境の固定を先に確認する
 
-科学codeでagentを使うなら、最初はread-only調査、test候補、影響範囲の列挙に限定する。unit、coordinate system、acceptable tolerance、conservation、random seed、reference data、citationをmachine-readableなtestとdocumentへ置く。agentのpatchは専門家が意味をreviewし、clean environmentで再計算する。
+公式配布では、課題ごとに実行環境と検証環境の二種類のイメージを用意し、linux/amd64の不変digestで参照する。標準の選択はライセンス制限のゲートがない96課題で、残り23課題は明示的な選択を要する。公開リポジトリのMITライセンスが、課題に含まれる第三者のコードへ一律に適用されるわけではない。
 
-SWE-bench Scienceが示すのは、強いmodelへ科学説明を足せば自動化が完成することではない。正しくgroundされたcontext、公開testと独立したverifier、integration coverage、domain expertの異議申立てを一つのworkflowへする必要がある。47.90%という値より、残りを四つの失敗へ分解した点が実務には長く残る。
+本稿は資料調査で、イメージの取得や119課題の再評価は行っていない。実際に比較するときは、選択した課題、モデル、harness、推論設定、予算、環境のdigestを残す。AIが提案した修正には、見えるテストに加えて、守るべき科学的な条件を独立に確かめる検証を用意するのが、この研究から得られる実用的な教訓だ。
 
-- domain invariantを文章だけでなくtestとschemaへ落とす
-- visible test通過とscientific acceptanceを別のgateにする
-- guidanceにはsource、version、適用範囲、反証条件を付ける
-- agent patchの採用責任をbenchmark scoreへ委ねない
+## 訂正履歴
+
+2026年10月22日：初版で論文の47.90%を公開leaderboardの最高値とも読める形で説明していたため、論文v2の八構成と、更新されるleaderboardを分けた。10月23日：同じ区別を保ち、公開テストとpass@1の違い、補足知識の比較条件を明確にした。
 
 ## 制約と未検証範囲
 
-- 本稿はarXiv preprint、公式benchmark repository、dataset card、公式leaderboardの資料調査である。2026年10月22日に論文v2のFigure 2・Table 2とleaderboardを再照合した。論文内の8構成と、更新されるleaderboardの結果は別のsnapshotとして扱う。査読済みpublicationとしては扱わない。
-- 119 taskのcontainer image、verifier image、agent実行、Docker Hub artifact、private verifier、model API、課金を伴うevaluationは再実行していない。数値は著者・benchmark運営者が公開した条件に限られる。
-- leaderboardは更新される。47.90%は2026年10月9日更新の公式pageで表示されたClaude Opus 5 max構成の値であり、将来の順位、別harness、別model version、個別repositoryの成功率を保証しない。
-- 科学softwareは20分野を含むが、119 taskで全分野、全言語、全規模、production research workflowを代表するとは限らない。task licenseと再配布範囲にも区分がある。
+- arXiv preprintを読む記事で、査読済みの成果としては扱わない。数値は著者・運営者の公開条件における報告。
+- 編集部はモデルAPI、コンテナ、非公開テストを再実行していない。119課題は各分野・言語・実運用の全体を代表するものではない。
 
 ## 確認したもの
 
 - [SWE-bench Science: Can Coding Agents Resolve Engineering Tasks in Science? — arXiv](https://arxiv.org/abs/2608.19799)
-- [SWE-bench Science v2 — Figure 2・Table 2（2026-10-22確認）](https://arxiv.org/pdf/2608.19799v2)
+- [SWE-bench Science v2 — Figure 2・Table 2（2026-10-23確認）](https://arxiv.org/pdf/2608.19799v2)
 - [OpenMOSS — SWE-bench Science official repository](https://github.com/OpenMOSS/SWE-bench-Science)
-- [SWE-bench Science — official leaderboard (checked 2026-10-22)](https://swescience.github.io/)
+- [SWE-bench Science — official leaderboard (checked 2026-10-23)](https://swescience.github.io/)

@@ -1,85 +1,46 @@
-# TypeSafe AIがJevをearly access公開：型付きの確率的判断はLLM structured outputと何が違うか
+# TypeSafe AIのJevは文章を生成せず判断を返す。問い合わせの振り分けをコードへ組み込む
 
 YAMASHI TECH AI Editorial Desk | News | AI / ML / DevTools / Software Engineering
 
 [掲載ページ](https://yamashi-tech.com/articles/news-typesafe-jev-system-one-models) · [原稿データ](../articles/news-typesafe-jev-system-one-models.json)
 
-公開: 2026-09-19 / 更新: 2026-09-19 / 確認: 2026-09-19
+公開: 2026-09-19 / 更新: 2026-10-23 / 確認: 2026-10-23
 
-TypeSafe AIは、文章ではなくChoice・Score・Noulによる型付きの確率的判断を返すJevをearly accessで公開した。LLMのstructured outputやclassifierと混同しやすい境界、向くsoftware workflow、価格・評価・privacyの未確認範囲を一次情報から整理する。
+TypeSafe AIは、状態と選択肢を受け取り、判断と確率を返すJevを先行公開した。自由文を読み解く工程を省き、分類や採点をプログラムの分岐へ組み込む設計だ。三つの判断形式、処理例、価格と速度比較の条件を整理する。
 
-## 要点：Jevは『文章を正しいJSONへ整形する』より前に、判断の選択肢をcode側で閉じるAPIである
+## モデルの答えを、そのままプログラムの分岐へ渡す
 
-TypeSafe AIは2026年9月15日、最初のSystem One ModelとしてJevをearly accessで公開した。Jevへ渡すのは評価対象のstateと、Choice、Score、Noulという型付きquestionであり、返るのは自由な文章ではなく、選択肢・確率分布・必要に応じたconfidenceだ。中心的な違いは、LLMに『このschemaで答えて』と指示して生成文をparseするのではなく、applicationが判断の候補とrubricを先に定義し、その範囲のdecisionを受け取る点にある。
+TypeSafe AIは2026年9月15日、最初のSystem One ModelとしてJevを先行公開した。入力するのは、問い合わせや文書などの状態と、それについて答えてほしい質問。返るのは生成された説明文ではなく、あらかじめ定義した選択肢や確率だ。
 
-ただし、これはsemantic correctnessを自動で得る仕組みではない。TypeSafeがいう型安全性は、定義済みのoutput shapeから外れないことを指す。例えばrefundかtechnical supportかというChoiceが合法なkeyを返しても、そのticketを正しく読めているか、選択肢が業務上十分か、実行してよいactionかは別の検証対象である。Jevの導入判断は『JSON parse errorが減るか』だけでなく、判断を小さく分解し、間違いを止めるcodeを自分たちで持てるかで行いたい。
+例えば「この問い合わせを請求担当、技術担当、その他のどこへ送るか」を質問し、返った選択肢で処理を分ける。曖昧な文章を読む部分をモデルが担い、送信先や実行条件はアプリケーションのコードが管理する。固定ルールだけでは扱いにくい分類を、通常のソフトウェアへ組み込むのが狙いだ。
 
-- Fact：Jevはstateとtyped questionを受け、Choice・Score・Noulのanswerを返す
-- Fact：ChoiceとScoreには確率分布から導かれるconfidenceがあり、Noulはyesの確率を0から1で返す
-- Fact：公式documentationは、長い推論・数値計算・日付比較・生成には別の設計またはmodelを勧めている
-- Inference：Jevは万能LLMの代替ではなく、codeが所有する狭い判断を埋めるcomponentとして読むと境界を保ちやすい
+## Choice・Score・Noulで、質問の形を決める
 
-## 何が起きたか：9月15日に公開、direct APIはearly accessとして提供
+Choiceは候補から一つを選ぶ質問、Scoreは段階付きの基準に沿った採点、Noulは命題が真である確率を求める質問だ。ChoiceとScoreは確率分布に加えて確信度を返す。Noulの値は0から1で、別の確信度項目はない。
 
-発表主体はTypeSafe AI、発表日は2026年9月15日である。公式発表はJevを同社初のpublic System One Modelとし、direct accessはearly accessとしてwaitlistから順に提供すると説明する。公開docsには`POST /v1/systemone`、model aliasの`jev-latest`、versioned IDの`jev-1.13.0`が記載されているが、これは誰でも無条件にkeyを発行できるという意味ではない。実際に利用できるmodel名はaccountの`GET /v1/models`で確認する仕様だ。
+複数の質問を一回のリクエストへまとめ、それぞれを同じ状態に対して並列・独立に評価する。総合的な判断を一問で求めるより、論点を小さく分け、結果の重み付けや組み合わせをコードへ残す使い方を同社は勧めている。
 
-2026年9月19日に確認したModelsページでは、Jev 1.13の入力価格は100万input tokenあたり0.042米ドル、output tokenは無料、rate limitは毎秒25万tokenかつ毎分1,200 request、contextはrequestあたり64k tokenとされる。TypeSafe自身がrate limitは需要に応じて予告なく調整し得るとしているため、ここでの価格・上限は契約上の見積もりや永続的なSLAとして扱えない。
+構造化出力を使うLLMとも、結果をコードで扱う目的は共通する。Jevの特徴は、自由な文章を生成する機能を省き、判断と確率を中心に設計している点にある。型が正しいことは、分類内容が正しいことまで保証しない。「請求担当」という正しい形式の値でも、問い合わせを読み違える可能性はある。
 
-## 入力と出力：三つのdecision primitiveを一度に投げ、applicationが次のactionを決める
+## 低い確信度は、人が確認する処理へ回せる
 
-Choiceはcode側で定めた選択肢から一つを選び、各選択肢のprobabilityとconfidenceを返す。Scoreは順序付きrubric上の確率加重score、Noulはyes／noのうちyesである確率を返す。複数のquestionは同じstateに対して一つのrequestへ混在でき、公式documentationでは各questionをparallelかつindependentlyに評価すると説明する。Noulには別のconfidence fieldがないので、0.5に近い値や質問文の曖昧さをapplication側で扱う必要がある。
+次の例は公式JavaScript SDKを基に、請求・技術・その他へ問い合わせを分けるもの。SDKの実行にはNode.js 22以降とAPIキーが必要になる。編集部では接続しておらず、API呼び出しと、その後の分岐を示す手順例である。
 
-ここでいうstateは文章だけに限られず、string、JSON object、text valuesのarrayを渡せる。一方でJev 1.13のinputはtext-onlyであり、画像、音声、videoは事前にtextまたは構造化fieldへ変換する必要がある。選択肢やrubricをproviderのpromptへ隠すのでなく、review可能なapplication codeとして持てることは、routing ruleを変更・テストするsoftware teamにとって実務上の差になる。これは公式API shapeから導く編集部のInferenceである。
+0.8という基準値は説明用で、同社がどの用途にも推奨する値ではない。実際には代表的な問い合わせで誤分類を確かめ、誤送信の影響と人が確認する量に応じて決める。請求に分類できたことを、そのまま返金の許可には使わない。
 
-Jev、LLM structured output、一般的なclassifierを『契約と責任の位置』で比較
-
-| 観点 | Jev | LLMのstructured output | 一般的なclassifier |
-| --- | --- | --- | --- |
-| applicationが定義するもの | Choiceの選択肢、Scoreのlevels、Noulの判定基準 | JSON schemaやfunction arguments | 通常は事前学習・実装済みのlabel set |
-| 主なresponse | typed decision、確率分布、Choice／Scoreのconfidence | schemaに沿うJSONまたはtool argument | label、score、確率などmodelごとの出力 |
-| 防げる問題 | 定義済みdecision primitiveのshape逸脱を防ぐというTypeSafeの設計 | parseしにくい自由文をschemaへ寄せる | 固定タスクのlabelingを高速化できる場合がある |
-| なお残る責任 | 意味の正しさ、選択肢の完全性、threshold、外部actionの承認 | schemaが合っていても内容が妥当かのvalidation | training dataの適合、drift、class定義、校正の確認 |
-
-## 従来LLMとの違い：structured outputは構文の契約、Jevはdecision contractだが、意味の保証ではない
-
-LLMのJSON mode、schema constrained decoding、function callingも、applicationが扱いやすいshapeを得る有効な方法だ。だが一般にそれらはtext-generating modelの出力をschemaへ合わせる層であり、schemaが満たされたことと、値が正しいことは別である。Jevも後者を魔法のように解決するわけではない。ただしJevのofficial APIは、生成する文章をvalueへ変換するのではなく、最初からchoice、ordered score、yes probabilityというdecision operationをinterfaceにしている。
-
-TypeSafeは『model never makes type errors』および『Zero Hallucinations』という表現を用いる。前者は公式発表で、possible outputとstructureがadvanceに定義されることに結び付けられたformalなclaimである。本稿ではこれを『schemaに合わないkeyや文字列を返さない設計』として扱い、引用・事実・policy判断が正しいというclaimへ広げない。後者のmarketing表現も、返答が自由文ではないこと、確率で不確実性を表すことの説明であって、誤分類ゼロや幻覚的な意味誤りゼロの独立検証ではない。
-
-classifierとの比較では、Jevは事前に固定された一つのtaskへmodelを当てるだけでなく、applicationが毎requestのquestionとcriteriaを組み立てられる点が特徴になる。ただしその柔軟さは、criteriaの書き方が結果を左右する責任も意味する。Noulのtrue／falseが反転していたり、instructionsとcriteriaが矛盾したりすると性能が落ちることを、TypeSafe自身も既知のjaggednessとして挙げている。
-
-## 速度・価格・calibration：公開数値はTypeSafeのworkflow評価と条件に限定して読む
-
-公式発表はend-to-end latencyを70msから500ms、System One shaped queryで既存LLMより40倍から200倍速いと説明する。homepageの193.6倍高速、444.6倍安価という数値は、TypeSafeが公開した四つのworkflow evaluationに由来する。同社の説明では、workflowのcompute graphを固定し、最大級の外部LLM二種の平均predictionをreference probabilityとして比較した。評価は正解labelだけを当てるbenchmarkではなく、code内でprobabilityを使うworkflowへの一致を測る設計だ。
-
-この測定は『どのLLMにも、どんなclassifierにも常にこれだけ速く安い』ことを示さない。発表自身も、公開workflowはmodel capabilities teamのメンバーが作ったためbiasがあり得ること、193.6倍／444.6倍はreal-world gainの高い側だと注記する。LLM側はTypeSafeのwrapperを通じて互換decisionを返す設定であり、自由文一回だけの生成、reasoningを厚くした回答、画像入力、長いcontext、network条件の違うsystemへそのまま外挿できない。独立した第三者benchmarkは本稿の調査で確認できていない。
-
-calibrationについても、公式documentationはChoice／Scoreのprobability distributionから0から1のconfidenceを計算すると説明する。confidenceが高いほど実際のaccuracyが高いという発表の主張を、ここではproviderのmodel propertyとして紹介するにとどめる。自社workflowでは、holdout dataでconfidence bucketごとの正解率、false positive／false negativeのcost、reviewへ送る割合を測り、actionごとにthresholdを決める必要がある。これはRecommendationである。
-
-## 誰に向くか：文章生成ではなく、狭い判断をcodeへ戻すworkflow
-
-向くのは、support ticketのroute、RAG取得文書のrelevance判定、候補のrerank、policyに沿ったguardrail、抽出結果のreview queue振り分けのように、stateを読み、あらかじめ定義した少数のactionへ分岐するworkflowだ。特に『低confidenceなら人へ送る』『上位候補だけ次の高価なmodelへ渡す』のように、AIの出力を最終actionではなくrouting signalとして使う設計と相性がよい。TypeSafeのdocsはintent routing、confidence-gated routing、LLM input／outputのguardrailを例に挙げている。
-
-向かないのは、利用者へ説明文・code・要約を生成する仕事、正確な算術、date/timeの比較、image／audio／videoを直接読む仕事、長い多段推論である。Jev 1.13の公式jaggednessはliteralな読み、count、numeric representation、関連しないlarge state、adversarial content、structural invariantを明示的な弱点としている。日本語を含むCJK textも処理はできるが、primary training languageの英語と同水準ではなく、自分のcontentで試すようModelsページは求める。
-
-## 今できること：live APIを急がず、decision contractとoffline evaluationを先に作る
-
-まず、既存workflowで『人が数秒で一つに答えられる狭い判断』を一つ選び、state、選択肢、definition of correct、誤るcostをfixtureとして固定する。Choiceには`other`または`none of the above`を入れる余地を検討し、Scoreは数値の推定ではなく順序付きrubricとして設計する。そのうえで、high／medium／low confidenceごとにauto action、追加情報、human reviewをどう分けるかをcodeに書く。公式SDKの型推論は便利でも、policyとside effectの承認をSDKへ委ねないことが重要だ。
-
-下のTypeScriptは公式JavaScript SDKのquickstartを基にした接続例であり、編集部ではAPI key、waitlist承認、課金を伴うlive callを実行していない。`choice`の候補はapplicationが所有し、返った値をいきなりrefund実行へ接続せず、confidenceを使ってreview pathへ分ける例として読む。実装時にはmock responseを使ったunit test、代表的な日本語inputを含むholdout evaluation、timeout・429・provider障害時のfallbackを追加したい。
-
-公式SDKを基にした未実行のTypeScript接続例
+未実行のTypeScript例。queueForHumanReviewとrouteTicketはアプリ側の処理を表す。
 
 ```typescript
 import { choice, TypeSafeClient } from "@typesafe-ai/sdk";
 
 const client = new TypeSafeClient();
 const result = await client.systemOne({
-  state: { ticket: "二重請求された。至急返金してほしい。" },
+  model: "jev-1.13.0",
+  state: { ticket: "二重請求された。返金してほしい。" },
   questions: {
     route: choice("この問い合わせをどこへ送るか", {
       billing: "請求、返金、支払いの問題",
-      technical: "障害、bug、integrationの問題",
+      technical: "障害や連携の問題",
       other: "どちらにも明確には当てはまらない",
     }),
   },
@@ -93,24 +54,24 @@ if (answer.confidence < 0.8 || answer.choice === "other") {
 }
 ```
 
-## まだ分からないこと：early accessの実利用、privacyの細部、独立評価と日本語での精度
+## 価格は入力100万トークン0.042ドル。速度比較には評価条件がある
 
-公開資料だけでは、waitlistの承認基準・所要時間、account／regionごとのavailability、実運用でのp50／p95 latency、rate limitの安定性、価格改定条件、特定taskでのcalibration error、誤分類率は確認できない。公開evaluationは興味深いが、外部のground truth benchmarkや第三者によるend-to-end再現を代替しない。導入判断では、providerの速度・価格表と、自社のqueue volume、review cost、error budgetを同じ条件で比較する必要がある。
+10月23日に確認したモデル資料では、Jev 1.13と1.14の入力価格は100万トークンあたり0.042米ドルで、出力は無料。通常の上限はリクエスト全体64k、質問ごと32kトークンで、処理できる量は組織ごとに設定される。モデル名を固定するか、更新される別名を使うかも選べる。同資料ではjev-latestは1.13.0、jev-previewは1.14.0を指している。
 
-data handlingについて、Modelsページとprivacy policyはcustomer request／responseをtrainingやfine-tuningに使わないとする。enterpriseにはzero data retention optionも案内されているが、一般の公開policyはdataをservice提供または事業目的に合理的に必要な期間保持すると記す。さらにserviceは米国でhostされるとされる。したがって『trainingしない』だけで機密dataの送信可否を決めず、retention、DPA、subprocessor、data transfer、ZDRの契約可否を個別に確認する。
+発表は応答時間70〜500ミリ秒、同種の判断で従来LLMの40〜200倍の速度を掲げる。また193.6倍高速、444.6倍安価という比較は、同社が作った四つの処理フローによるものだ。比較の基準回答はGPT-6 AstraとFable 5.1の予測の平均で、LLM側にも確率付きの互換出力を求めている。同社自身が実際の改善幅の大きい側の数字と説明しており、一般的な文章生成との速度差には使えない。
 
-## 次に確認する条件：GA、model version、価格・limit、evaluation、data termsが更新されたとき
+## 向くのは狭い意味判断。計算と日付の比較はコードへ残す
 
-次の確認条件は、Jevのgeneral availability、`jev-latest`が指すversion、early-access範囲、priceまたはrate limit、公開evaluationのdataset・第三者追試、Jev 1.13の既知制約、privacy／DPA／ZDR条件の更新である。特にproduction actionへつなぐteamは、model aliasの変更前後で同じfixtureを再評価し、thresholdとhuman review率を見直すべきだ。
+問い合わせの振り分け、検索結果の関連度判定、候補の採点など、答えの候補を先に決められる仕事が検討対象になる。Jev 1.13の既知の弱点として、数の集計、正確な計算、日時比較、複雑な間接推論が挙げられている。こうした処理はコードが担当し、モデルには意味の判断を任せると役割が明確になる。
 
-現時点の結論はシンプルである。JevはLLMの出力を見栄えよく整形する代替品というより、applicationが定義したatomic decisionをprobability付きで返すための新しいAPI surfaceだ。条件がはまるworkflowでは、prompt parsingを減らし、低confidenceをreviewへ逃がす設計を取りやすい。一方で、型安全性、速度、calibrationというproviderの主張を、semantic accuracy、security、業務上の正しさへ短絡させず、code-owned policyと自社evaluationを残すことが採用の前提になる。
+日本語も処理できるが、公式資料は英語と同等の精度とはしていない。日本語の問い合わせを扱うなら、日本語の実例で基準値を調整する。また同社は入力を学習に使わないと説明するが、それだけで保持期間がゼロになるわけではない。機密情報を送る場合は契約上のデータ処理条件も確認する。
+
+更新（2026年10月23日）：固定の処理上限に関する旧記述を、現行資料の組織別上限へ更新し、Jev 1.14とモデル別名の対応を追記した。本文の三つの判断形式と例は、Jev 1.13のテキスト処理を対象とする。
 
 ## 制約と未検証範囲
 
-- Jevはearly accessであり、waitlist、rate limit、model alias、価格、利用可能なaccountやregionは変更され得る。本文ではAPI key、課金、waitlist承認を必要とするlive API callを実行していない。
-- 速度、cost、calibration、比較評価、型安全性に関する数値・定義はTypeSafe AIの公開資料に基づく。独立した第三者評価、長期運用実績、特定の日本語workflowでの再現は確認していない。
-- 型に合うresponseが返ることは、分類・抽出・安全判定・事実関係が正しいことを保証しない。高影響な判断には、自社dataでのevaluation、threshold、human review、通常のinput／output validationが必要である。
-- data retentionの具体的な期間は公開privacy policyから一律には確定できない。enterprise向けZDRの可否、data location、契約、subprocessor、個別のprivacy要件は利用前に最新の契約文書と照合する必要がある。
+- 接続例は未実行。APIキーの取得、有料APIの利用、待機リストへの登録、速度・精度の測定は行っていない。
+- 速度・費用・確信度の特性はTypeSafe AIの報告に基づく。紹介する比較は同社の評価条件に限定される。
 
 ## 確認したもの
 

@@ -1,0 +1,109 @@
+# GitHub package firewallが公開プレビューに：npmの取得時に危険な依存をブロック
+
+YAMASHI TECH AI Editorial Desk | News | Security / DevTools / Software Engineering
+
+[掲載ページ](https://yamashi-tech.com/articles/news-github-package-firewall-public-preview) · [原稿データ](../articles/news-github-package-firewall-public-preview.json)
+
+公開: 2026-10-23 / 更新: 2026-10-23 / 確認: 2026-10-23
+
+GitHub Enterprise Cloud向けに、npmパッケージの取得段階でマルウェアや脆弱性などを判定する機能が登場した。主な制御と、導入の前提になるregistry設定を実例で解説する。
+
+## npmを取得する入口で、ポリシーに合わないパッケージを止める
+
+GitHubは2026年10月20日、package firewallのPublic Previewを発表した。npmパッケージの情報取得とダウンロードを中継し、既知のマルウェア、脆弱性、新しく追加されたinstall scriptなどの条件で取得を止める。対象はデータ所在地指定を含むGitHub Enterprise Cloudだ。[1][2]
+
+依存関係を調べた後に修正する工程へ、取得時の制御が加わる。開発端末、CI、coding agentがfirewallを経由して依存を取る構成にすることで、組織のポリシーをその入口で適用できる。
+
+## 五つの制御で、何をブロックするかを決める
+
+公式Docsに掲載された制御と初期値は下表のとおり。脆弱性の初期値はCritical onlyで、公開直後のパッケージには1日の待機期間が設けられる。attestationの後退は、それまであった生成過程の証明が要求した版で欠けた場合を扱う。[2]
+
+これらは条件に該当する取得を止める仕組みだ。待機期間が過ぎたことや、既知の情報に一致しなかったことを、パッケージ全体の安全性の証明には使えない。
+
+2026年10月23日に確認した公式Docsの制御と、過大評価しないための読み方
+
+| 制御 | 公式に記載された条件・初期値 | 読み違えやすい点 |
+| --- | --- | --- |
+| 既知のmalware | GitHub Advisory Databaseの有効なmalware情報に一致。初期値On | 未知の攻撃をすべて検出するという意味ではない |
+| 脆弱性 | 対象versionのadvisoryを確認。初期値Critical only | 初期状態で全severityを拒否するわけではない |
+| attestationの後退 | 以前はSLSA attestationがあり、要求versionでは欠ける場合。初期値On | 証明のない全パッケージを一律拒否する説明ではない |
+| 新たなinstall script | 新しく加わったpreinstallなどのscriptを確認。初期値On | すべてのinstall scriptを禁止する説明ではない |
+| 公開後の待機期間 | 初期値1日。1〜365日を指定でき、0で無効 | 日数の経過だけで安全が確定するわけではない |
+
+## 導入の要所は、端末とCIが実際に使うregistry
+
+firewallの制御を受けるには、パッケージ取得をその接続先へ向ける必要がある。ユーザー設定を一度変えても、プロジェクトの設定やコマンドライン引数が別のregistryを選べば、同じ取得経路になるとは限らない。npmは複数の設定元を優先順位に従って解決する。[3][4]
+
+編集部は2026年10月23日、Darwin x86_64、Node.js 23.11.0、npm 10.9.2で、この優先順位をオフラインで確認した。ユーザー設定だけではダミーのfirewall URLが返り、プロジェクトの.npmrcを加えるとnpm公式registryへ、CLI引数を加えるとさらに別のURLへ変わった。3回とも終了コードは0だった。
+
+編集部のオフライン観測：npm config get registryが返した値
+
+| 条件 | 観測したregistry |
+| --- | --- |
+| ユーザー設定のみ | https://firewall.example.invalid/ |
+| プロジェクトの.npmrcを追加 | https://registry.npmjs.org/ |
+| さらにCLIの--registryを指定 | https://cli.example.invalid/ |
+
+## 設定の上書きを、インストールなしで再現する
+
+次のコードをcheck-npm-registry.mjsへ保存し、node check-npm-registry.mjsで実行できる。編集部が実行したコードと同じで、一時ディレクトリ内に設定を作り、npm config get registryで値を読む。既存の設定ファイルを変更せず、子プロセスへ渡す環境変数もPATHだけに絞っている。
+
+この実験が示すのはregistry設定の解決結果だ。実際の取得経路を確認する際は、scope別設定やlockfile内のURL、社内proxy・cacheも調べる。例示のexample.invalidは実サービスの接続先ではない。
+
+実行済み：一時ディレクトリ内の設定読み取りだけを行う再現コード
+
+```javascript
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+const fixture = mkdtempSync(join(tmpdir(), "yt-npm-registry-"));
+try {
+  const project = join(fixture, "project");
+  mkdirSync(project);
+  writeFileSync(join(project, "package.json"), '{"private":true}\n');
+  writeFileSync(join(fixture, "user.npmrc"), "registry=https://firewall.example.invalid/\n");
+  writeFileSync(join(fixture, "global.npmrc"), "");
+  const query = (args = []) => execFileSync("npm", [
+    "config", "get", "registry", "--offline",
+    "--userconfig", join(fixture, "user.npmrc"),
+    "--globalconfig", join(fixture, "global.npmrc"),
+    "--cache", join(fixture, "cache"), ...args,
+  ], { cwd: project, env: { PATH: process.env.PATH }, encoding: "utf8" }).trim();
+  console.log("user only:", query());
+  writeFileSync(join(project, ".npmrc"), "registry=https://registry.npmjs.org/\n");
+  console.log("project override:", query());
+  console.log("CLI override:", query(["--registry=https://cli.example.invalid/"]));
+} finally {
+  rmSync(fixture, { recursive: true, force: true });
+}
+```
+
+## 緊急更新では、待機期間と例外の扱いを決めておく
+
+公開後の待機期間は、急いで取り込みたい修正版にも影響する。公式Docsは例外申請を用意しており、要求した版から全versionを示す*へ許可を広げる操作も説明している。[2]
+
+編集部は、まず必要な版と停止理由を特定し、例外を判断する担当者と見直し条件を記録する運用を勧める。緊急の1版を通す判断と、その後の全versionを通す判断を分けると、広い許可が残り続けることを防ぎやすい。
+
+## 導入は、更新手順を把握しているCIから始める
+
+最初の候補には、依存更新の頻度と、止まったときの担当者が分かるCI jobが向く。インストールと同じ作業ディレクトリ・環境変数・起動引数で取得先を確認し、そのうえで通常の更新と意図したブロックを試す、という順序を編集部は提案する。
+
+Public Preview中は無料で、一般提供後は従量課金の予定だ。発表に単価と一般提供日は示されていない。導入計画では例外対応の負担と費用条件も確認したい。[1]
+
+今回、編集部が実行したのはnpm設定の読み取り実験まで。GitHub Enterprise環境での接続・遮断・例外申請や、検出率・遅延の測定は行っていない。
+
+## 制約と未検証範囲
+
+- 資料の確認日とローカル実験日は2026年10月23日。package firewallはPublic Previewで、対象・料金・制御・手順は変わり得る。
+- ローカル実験はDarwin x86_64 / Node.js v23.11.0 / npm 10.9.2でのregistry設定の読み取りのみ。firewallへの認証や遮断、例外申請、CI・agentでの実運用は未検証。
+- 設定値の表示だけでは実際の全ダウンロード経路を証明できない。lockfile、scope、proxy、cacheなどを含む通信の追跡は行っていない。
+- 認証情報・契約環境・課金操作は記事の機能検証に使用していない。検出性能、誤検知率、遅延、可用性の比較も行っていない。
+
+## 確認したもの
+
+- [[1] GitHub Changelog — GitHub package firewall in public preview（2026年10月20日発表、21日改訂注記）](https://github.blog/changelog/2026-10-20-github-package-firewall-in-public-preview/)
+- [[2] GitHub Docs — Protecting endpoints with GitHub package firewall（制御、取得先、例外）](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/protecting-endpoints-with-package-firewall)
+- [[3] npm Docs v10 — npmrc（設定ファイルと適用範囲）](https://docs.npmjs.com/cli/v10/configuring-npm/npmrc/)
+- [[4] npm Docs v10 — npm config（設定値の取得）](https://docs.npmjs.com/cli/v10/commands/npm-config/)

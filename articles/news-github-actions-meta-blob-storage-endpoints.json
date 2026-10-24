@@ -1,0 +1,144 @@
+{
+  "title": "GitHub Actionsのログ保存先が120ホスト追加：個別の通信許可リストは更新対象",
+  "slug": "news-github-actions-meta-blob-storage-endpoints",
+  "category": "News",
+  "tags": [
+    "DevTools",
+    "Software Engineering"
+  ],
+  "summary": "Actionsのblob storageに30〜49と100〜199のホストが加わる。個別FQDNを許可している環境と、既存wildcardで対応できる環境を分け、差分の列挙方法とログ・summaryの確認点を解説する。",
+  "publishedAt": "2026-10-23",
+  "updatedAt": "2026-10-23",
+  "checkedAt": "2026-10-23",
+  "readingMinutes": 7,
+  "sections": [
+    {
+      "heading": "個別ホストを許可している組織は、二つの追加範囲を確認する",
+      "paragraphs": [
+        "GitHubは2026年10月22日、Actionsのblob storageへ新しい保存先ホストを追加したと発表した。対象範囲はproductionresultssa30〜49とproductionresultssa100〜199の各.blob.core.windows.netで、両端を含めて計120件になる。[1]",
+        "一件ずつホスト名を登録して通信を許可する組織は、ログやjob summaryの中断を避けるため既存一覧と照合する。一方、productionresultssa*.blob.core.windows.netを既に許可していれば、今回の追加に対する設定変更は不要とGitHubは説明している。"
+      ]
+    },
+    {
+      "heading": "runnerの接続成功と、ログを保存できることは別の確認になる",
+      "paragraphs": [
+        "保存先の追加は、Actionsの容量と信頼性を改善するための変更だ。runnerがonlineでソースの取得も成功していても、結果を送る別の経路が遮断されていれば、ログやsummaryの確認は完了していない。",
+        "公式のself-hosted runner資料は、基本動作に必要な接続先と、job summary・ログ・artifact・cacheの送受信先を分けている。外向きHTTPSの443番portが必要になる。今回の告知が直接挙げる影響はログとsummaryであり、新しい全ホストの用途が各機能へ一律に割り当てられるという説明ではない。[1][2]"
+      ],
+      "table": {
+        "caption": "10月22日の追加範囲。件数は両端を含めて再計算",
+        "columns": [
+          "先頭ホスト",
+          "末尾ホスト",
+          "追加範囲の件数"
+        ],
+        "rows": [
+          [
+            "productionresultssa30.blob.core.windows.net",
+            "productionresultssa49.blob.core.windows.net",
+            "49 − 30 ＋ 1 ＝ 20"
+          ],
+          [
+            "productionresultssa100.blob.core.windows.net",
+            "productionresultssa199.blob.core.windows.net",
+            "199 − 100 ＋ 1 ＝ 100"
+          ]
+        ]
+      }
+    },
+    {
+      "heading": "120件の追加候補を、重複と境界を検査しながら作る",
+      "paragraphs": [
+        "30〜49は20件、100〜199は100件なので、追加範囲は合計120件になる。これはActions全体のホスト数でも、各組織が新たに登録する件数でもない。実際の差分は、今の設定がどこまで含んでいるかで決まる。",
+        "次のPythonは通信やファイル変更を行わず、範囲を展開する。編集部は2026年10月23日、Darwin x86_64 / Python 3.12.2で実行し、重複なしの120件、範囲の両端、隣接する範囲外の除外をassertした。Pythonのrangeは終端を含まないため、last + 1を使う。"
+      ],
+      "code": {
+        "label": "実行済み：追加範囲の件数と境界だけを検証。外部接続はしない",
+        "language": "python",
+        "value": "ranges = [(30, 49), (100, 199)]\nids = [n for first, last in ranges for n in range(first, last + 1)]\nhosts = [f\"productionresultssa{n}.blob.core.windows.net\" for n in ids]\nassert len(hosts) == len(set(hosts)) == 120\nfor n in (30, 49, 100, 199):\n    assert f\"productionresultssa{n}.blob.core.windows.net\" in hosts\nfor n in (29, 50, 99, 200):\n    assert f\"productionresultssa{n}.blob.core.windows.net\" not in hosts\nprint(len(hosts), hosts[0], hosts[-1])\n# 120 productionresultssa30.blob.core.windows.net productionresultssa199.blob.core.windows.net"
+      }
+    },
+    {
+      "heading": "最新の一覧はMeta APIから取り、設定との差分を管理する",
+      "paragraphs": [
+        "GitHubによると新しいendpointはMeta APIにも含まれる。Meta APIのreferenceへ掲載されたJSONは例示なので、運用で最新値が必要なときはAPIの応答を取得する。[1][3]",
+        "下は公式endpointを読むための未実行例。公開情報の取得に認証は不要とされる。応答の取得時刻、既存設定との差分、適用先を記録すると、追加の告知が出た際にも比較しやすい。",
+        "IPで管理している環境は、FQDNの追加だけで対応を終えられるかを別途判断する。GitHubはMeta APIのIP一覧が全サービスを網羅しないと注意しており、文書の例を固定IP一覧として使う運用には向かない。[4]"
+      ],
+      "code": {
+        "label": "資料に基づく未実行例：publicなMeta APIを取得。設定は変更しない",
+        "language": "bash",
+        "value": "curl --fail --show-error --silent \\\n  --header 'Accept: application/vnd.github+json' \\\n  https://api.github.com/meta"
+      }
+    },
+    {
+      "heading": "許可方式で、必要な変更を切り分ける",
+      "paragraphs": [
+        "最初に制限をかけている装置やproxyと、その管理元を特定する。self-hostedかどうかだけで判断せず、実際の外向き通信がどの設定を通るかを見る。以下は公式の条件を踏まえた編集部の整理だ。"
+      ],
+      "table": {
+        "caption": "確認の順序。個々の装置の対応を検証した表ではない",
+        "columns": [
+          "現在の方式",
+          "今回の判断",
+          "確認先"
+        ],
+        "rows": [
+          [
+            "productionresultssa*.blob.core.windows.netを許可",
+            "追加分への変更は不要という公式説明",
+            "実際の設定でpatternが有効か確認"
+          ],
+          [
+            "個別FQDNを列挙",
+            "二つの新規範囲を既存一覧と照合",
+            "ネットワーク設定の管理元"
+          ],
+          [
+            "IP addressを固定",
+            "ホスト名の追加だけで解決とは判断できない",
+            "Meta APIと組織のIP更新手順"
+          ],
+          [
+            "方式が不明、複数proxyを経由",
+            "変更前に制限箇所を特定",
+            "runner担当とネットワーク担当"
+          ]
+        ]
+      }
+    },
+    {
+      "heading": "変更後は、短いworkflowのログとsummaryを両方確かめる",
+      "paragraphs": [
+        "編集部は、対象runnerを限定し、既知の文字列をログとjob summaryへ出すテストを勧める。jobの終了だけでなく、ログの末尾と期待したsummaryを閲覧できること、装置側で意図した許可が適用されたことを確認する。これは確認手順の提案で、今回実行したworkflowではない。",
+        "表示が欠けた場合は、時刻、対象runner、失敗した機能と装置の拒否記録を照合する。既存wildcardが有効なら今回の追加だけを理由に変更せず、個別ホスト方式なら必要な差分を足す、という順序で進められる。",
+        "今回の実行検証は120件の列挙と境界確認まで。Meta APIの実リクエスト、各ホストへの接続、firewall変更、認証付きworkflow実行は行っていない。"
+      ]
+    }
+  ],
+  "references": [
+    {
+      "label": "GitHub Changelog（2026-10-22）：Meta API endpoints updated for Actions blob storage",
+      "url": "https://github.blog/changelog/2026-10-22-meta-api-endpoints-updated-for-actions-blob-storage/"
+    },
+    {
+      "label": "GitHub Docs：Self-hosted runners reference（Communication、機能別ドメイン）",
+      "url": "https://docs.github.com/en/actions/reference/runners/self-hosted-runners"
+    },
+    {
+      "label": "GitHub Docs：REST API endpoints for meta data（最新値・認証条件）",
+      "url": "https://docs.github.com/en/rest/meta/meta"
+    },
+    {
+      "label": "GitHub Docs：About GitHub's IP addresses（一覧の範囲と更新の注意）",
+      "url": "https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-githubs-ip-addresses"
+    }
+  ],
+  "limitations": [
+    "2026-10-23時点の公式資料を照合したNews。新規範囲120件の件数・重複・境界をオフラインで検証した。",
+    "Meta APIの実リクエスト、DNS、対象ホストへの接続、firewall変更、認証付きworkflow実行は行っていない。",
+    "120は今回告知された追加範囲の件数であり、GitHub Actions全体の保存先数や、各組織が必要とする設定変更件数ではない。",
+    "job summary・ログへの影響は今回の告知に基づく。各ホストがartifactやcacheを含むどの機能に実際に使われるかは確認していない。",
+    "装置ごとのwildcard・CNAME・IP addressの処理や、組織ごとの制限経路は未検証。記事中の適用・確認手順は編集部の提案である。"
+  ]
+}

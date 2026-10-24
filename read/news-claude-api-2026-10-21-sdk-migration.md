@@ -1,0 +1,70 @@
+# Claude APIの新バージョンで変わる入力・認証・集計：SDK major更新の確認点
+
+YAMASHI TECH AI Editorial Desk | News | AI / ML / DevTools / Software Engineering
+
+[掲載ページ](https://yamashi-tech.com/articles/news-claude-api-2026-10-21-sdk-migration) · [原稿データ](../articles/news-claude-api-2026-10-21-sdk-migration.json)
+
+公開: 2026-10-23 / 更新: 2026-10-23 / 確認: 2026-10-23
+
+2026-10-21版APIではtemperatureなどの入力項目が廃止され、SDKの認証ヘッダーや管理・集計APIにも変更が入る。互換性に影響する箇所と、移行時に確認する順序を整理する。
+
+## SDKのmajor更新と一緒に、APIの入出力も変わる
+
+Anthropicは10月21日、Claude APIの2026-10-21版を公開した。公式告知によると、Python SDK 2.0.0、TypeScript SDK 1.0.0、ant CLI 2.0.0はこのAPI版を既定で使う。更新するチームは、依存packageの版に加え、送信する入力、認証ヘッダー、応答を読む処理を確認する必要がある。[1][2]
+
+APIバージョンは入出力の契約、SDKバージョンはクライアント実装、モデルIDは呼び出すモデルを指定する。モデルIDを固定していても、SDK更新でAPI版や認証の送り方が変われば、既存アプリの互換性へ影響する。
+
+## Messages APIは、入力の三つの書き方を受け付けなくなる
+
+新API版ではtemperature、top_p、top_kが廃止され、いずれかを送ると全モデルで400になる。assistantメッセージの直下へdocumentブロックを置く書き方も400になるため、該当する文書はuser側へ移す。[2][3]
+
+もう一つはuserメッセージ内のtextブロックにある非空のcitations配列だ。直接置く場合とsearch_result内に置く場合の両方が対象になる。assistant側の引用情報まで一括削除する変更ではない。
+
+| 対象 | 新API版の扱い | アプリで探す箇所 |
+| --- | --- | --- |
+| temperature / top_p / top_k | 送信すると400 | 共通のリクエスト生成処理と既定値 |
+| assistant直下のdocument | 400。文書はuser側へ | 保存した会話履歴と文書添付処理 |
+| user textの非空citations | 直接・search_result内とも400 | 会話の再送、検索結果の組み立て |
+
+## SDKの認証ヘッダーはAuthorization: Bearerへ
+
+SDKとCLIは、API keyの送信をX-Api-KeyからAuthorization: Bearerへ変更する。API自体は両方を受け付けるため、確認の中心になるのは、間に置いたgatewayや独自の認証処理だ。旧ヘッダーだけを通す許可設定、ログのマスキング、テスト用stubにヘッダー名を固定していないかを調べたい。[3]
+
+接続先による違いもある。Anthropic Foundryは引き続きx-api-keyを使い、Bedrock Mantleは既にBearerを使う。全platformへ同じヘッダー置換を適用するのではなく、使っているclientと接続先の組み合わせで確認する。これは移行時の確認案で、実際の障害や情報漏えいを観測した報告ではない。
+
+## 管理・集計のJSONも、必要なフィールドを読み替える
+
+Admin APIのAPI key応答ではworkspace_idがscope.workspace_idへ移る。scope内のIDはworkspaceの実IDを表し、全workspaceを対象にしたkeyにはそのworkspace_idがない。単純なプロパティ名の置換だけでなく、組織全体のkeyを扱う分岐も確認する。[2][3]
+
+Enterprise Analyticsの利用量・コスト報告ではactor.emailがactor.email_addressへ変わる。請求集計や監査の取り込み処理が旧フィールドを読んでいる場合は、API呼び出しの成功と、集計結果に値が入ることを別々に確かめる。
+
+このほかRBACやactivity summariesにも応答変更がある。管理APIを広く使う場合は、ここで挙げた二項目だけで移行を完了とせず、公式Versionsとmigration guideの対象一覧を照合する。
+
+## 更新前に、接続先とruntimeの条件をそろえる
+
+Amazon Bedrockで2026-10-21版を利用できるのはClaude 4.7以降だ。それより前のモデルを使うアプリでは、SDK/APIを維持するか、モデル移行を先に行うかを決める。ほかのplatformの条件へこの制限を広げない。[2][3]
+
+Python SDKのREADMEに掲載されたruntime要件はPython 3.10以上。Python 2.0.0のreleaseでも新API版への対応がbreaking changeとして示されている。SDK、モデル、接続先、runtimeを一つの一覧にすると、更新対象と維持する対象を切り分けやすい。[4][5]
+
+## 移行確認は、送信・認証・応答の順に行う
+
+編集部は、最初に依存lockfileと実際に送るAPI版を記録し、代表的なリクエストと保存済み履歴をfixtureへ固定することを勧める。廃止パラメーター、document、citationsを点検した後、gatewayを通した認証とマスキング、最後に管理・集計のJSON取り込みを確認する。
+
+こうすると、400になる入力と、通信は成功するが集計で値を落とす変更を別々に見つけられる。旧API版の廃止期限を今回の発表から推定して、一斉更新の締切を作る必要はない。
+
+本稿は2026年10月23日時点の公式資料を照合したもの。SDKのインストール、認証付きAPI呼び出し、実gatewayや集計処理の回帰試験は実施していない。
+
+## 制約と未検証範囲
+
+- 2026-10-23時点の公式資料を照合したNews。新SDKのインストール、認証付きリクエスト、400エラーの実再現、実サービスの移行は行っていない。
+- 記事中の回帰試験、切替順序、見送り条件は編集部の提案であり、すべてのアプリに同じ不具合が発生するという報告ではない。
+- platform clientや利用モデルによる例外がある。実際に使うclientの移行ガイドと提供条件を切替前に確認する。
+- 出力品質・速度・費用の比較は実施していない。旧API版の将来の提供期限や個別契約もこの記事では保証しない。
+
+## 確認したもの
+
+- [Claude Platform release notes：2026-10-21のAPI版・SDK・CLI公開](https://platform.claude.com/docs/en/release-notes/overview)
+- [Claude Platform Docs：Versions（API版ごとの入力・出力契約）](https://platform.claude.com/docs/en/api/versioning)
+- [Claude Platform Docs：Migrating to API version 2026-10-21（認証・SDK変更・Bedrockの条件）](https://platform.claude.com/docs/en/api/migration-2026-10-21)
+- [Anthropic公式Python SDK v2.0.0 release](https://github.com/anthropics/anthropic-sdk-python/releases/tag/v2.0.0)
+- [Anthropic公式Python SDK README（Python要件）](https://github.com/anthropics/anthropic-sdk-python/blob/main/README.md)

@@ -186,6 +186,31 @@
       "slug": "news-github-cli-expiring-oauth-tokens",
       "path": "articles/news-github-cli-expiring-oauth-tokens.json",
       "sha256": "b631a9226047cbd37870bfb4e5c7f603fe3feea4e6e75dc1e3dd466d94aa2185"
+    },
+    {
+      "slug": "design-node-bounded-concurrency-failure-boundary",
+      "path": "articles/design-node-bounded-concurrency-failure-boundary.json",
+      "sha256": "efd230ee6d71055a639fbb8ccb2a44096aaef9636e2ff1f05b9ff5c9e57fc39f"
+    },
+    {
+      "slug": "tool-git-bisect-reproducible-predicate",
+      "path": "articles/tool-git-bisect-reproducible-predicate.json",
+      "sha256": "b35a05dad788ac253aed137d9059ba5aea913e30db27c03d6b3540e61a214e50"
+    },
+    {
+      "slug": "news-github-actions-meta-blob-storage-endpoints",
+      "path": "articles/news-github-actions-meta-blob-storage-endpoints.json",
+      "sha256": "de0d384e7bff1f683601218925afa820451f49bfb1de06d7ee6650f40aad4bf5"
+    },
+    {
+      "slug": "news-claude-api-2026-10-21-sdk-migration",
+      "path": "articles/news-claude-api-2026-10-21-sdk-migration.json",
+      "sha256": "0c56927d991010bdc4d7918c198c4605c8c3208bb4a0539aad7a69c66b33429c"
+    },
+    {
+      "slug": "news-github-package-firewall-public-preview",
+      "path": "articles/news-github-package-firewall-public-preview.json",
+      "sha256": "651ea6408cf6dc2d9d791c9a52856574d6de7c55393dfe431c105797a9171a5a"
     }
   ],
   "assets": [

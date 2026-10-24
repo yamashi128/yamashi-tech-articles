@@ -3,6 +3,11 @@
 原稿データから生成した閲覧用Markdownです。修正は対応するJSON原稿へ行います。
 
 - 2026-10-23 / News — [GitHub CLIが認証トークンを自動更新。期限付きでもログインを維持](read/news-github-cli-expiring-oauth-tokens.md)
+- 2026-10-23 / Deep Dive — [Promise.allで並行数は制限できない：workerで開始数と失敗後の回収を制御する](read/design-node-bounded-concurrency-failure-boundary.md)
+- 2026-10-23 / Deep Dive — [git bisectの使い方：good・badの自動判定で不具合の混入commitを探す](read/tool-git-bisect-reproducible-predicate.md)
+- 2026-10-23 / News — [GitHub Actionsのログ保存先が120ホスト追加：個別の通信許可リストは更新対象](read/news-github-actions-meta-blob-storage-endpoints.md)
+- 2026-10-23 / News — [Claude APIの新バージョンで変わる入力・認証・集計：SDK major更新の確認点](read/news-claude-api-2026-10-21-sdk-migration.md)
+- 2026-10-23 / News — [GitHub package firewallが公開プレビューに：npmの取得時に危険な依存をブロック](read/news-github-package-firewall-public-preview.md)
 - 2026-10-22 / News — [PHPが未認証RCEの脆弱性2件を修正。Webを動かすPHP本体の更新と再配置を](read/news-php-critical-rce-october-2026-security-update.md)
 - 2026-10-21 / News — [Responses APIが12時間のPrompt Cachingに対応。数時間後も同じ指示や資料を再利用する](read/news-openai-responses-api-12-hour-prompt-caching.md)
 - 2026-10-20 / Research — [SWE-bench Scienceを読む：テスト合格と、科学的に正しい修正の差](read/paper-swe-bench-science-coding-agents.md)

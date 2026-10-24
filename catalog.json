@@ -35,5 +35,10 @@
   "news-anthropic-claude-haiku-5-5-cost-boundary",
   "news-openai-responses-api-12-hour-prompt-caching",
   "news-php-critical-rce-october-2026-security-update",
-  "news-github-cli-expiring-oauth-tokens"
+  "news-github-cli-expiring-oauth-tokens",
+  "design-node-bounded-concurrency-failure-boundary",
+  "tool-git-bisect-reproducible-predicate",
+  "news-github-actions-meta-blob-storage-endpoints",
+  "news-claude-api-2026-10-21-sdk-migration",
+  "news-github-package-firewall-public-preview"
 ]

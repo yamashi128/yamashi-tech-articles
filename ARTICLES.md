@@ -2,6 +2,7 @@
 
 原稿データから生成した閲覧用Markdownです。修正は対応するJSON原稿へ行います。
 
+- 2026-10-24 / News — [OpenAIのDecisions APIがGAに：分類・分岐をResponses APIと分けて設計する](read/news-openai-decisions-api-general-availability.md)
 - 2026-10-23 / News — [GitHub CLIが認証トークンを自動更新。期限付きでもログインを維持](read/news-github-cli-expiring-oauth-tokens.md)
 - 2026-10-23 / Deep Dive — [Promise.allで並行数は制限できない：workerで開始数と失敗後の回収を制御する](read/design-node-bounded-concurrency-failure-boundary.md)
 - 2026-10-23 / Deep Dive — [git bisectの使い方：good・badの自動判定で不具合の混入commitを探す](read/tool-git-bisect-reproducible-predicate.md)

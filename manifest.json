@@ -211,6 +211,11 @@
       "slug": "news-github-package-firewall-public-preview",
       "path": "articles/news-github-package-firewall-public-preview.json",
       "sha256": "651ea6408cf6dc2d9d791c9a52856574d6de7c55393dfe431c105797a9171a5a"
+    },
+    {
+      "slug": "news-openai-decisions-api-general-availability",
+      "path": "articles/news-openai-decisions-api-general-availability.json",
+      "sha256": "a8da3ba1978435105c308222f0b37ef5e802f8c7c1b7829434bd93fd01beee36"
     }
   ],
   "assets": [

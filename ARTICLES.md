@@ -9,6 +9,7 @@
 - 2026-10-23 / News — [GitHub Actionsのログ保存先が120ホスト追加：個別の通信許可リストは更新対象](read/news-github-actions-meta-blob-storage-endpoints.md)
 - 2026-10-23 / News — [Claude APIの新バージョンで変わる入力・認証・集計：SDK major更新の確認点](read/news-claude-api-2026-10-21-sdk-migration.md)
 - 2026-10-23 / News — [GitHub package firewallが公開プレビューに：npmの取得時に危険な依存をブロック](read/news-github-package-firewall-public-preview.md)
+- 2026-10-23 / News — [動く画像をCSSで停止・再生する草案が更新：image-animationは何を制御するか](read/news-w3c-image-animation-working-draft-20261021.md)
 - 2026-10-23 / Research — [Lost in the Middle：長文の中央に置いた根拠を、LLMは使えるのか](read/paper-lost-in-the-middle-context-evaluation.md)
 - 2026-10-22 / News — [PHPが未認証RCEの脆弱性2件を修正。Webを動かすPHP本体の更新と再配置を](read/news-php-critical-rce-october-2026-security-update.md)
 - 2026-10-21 / News — [Responses APIが12時間のPrompt Cachingに対応。数時間後も同じ指示や資料を再利用する](read/news-openai-responses-api-12-hour-prompt-caching.md)

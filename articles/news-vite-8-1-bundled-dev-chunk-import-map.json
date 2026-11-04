@@ -1,0 +1,106 @@
+{
+  "title": "Vite 8.1、開発中の大量リクエストと、公開後のキャッシュ破棄を減らす",
+  "slug": "news-vite-8-1-bundled-dev-chunk-import-map",
+  "category": "News",
+  "tags": ["DevTools", "Software Engineering"],
+  "summary": "Vite 8.1のBundled Dev ModeとChunk Import Mapを解説する。開発中のファイル読込が増える理由と、更新がキャッシュへ波及する仕組みを、従来方式と具体例で比較する。",
+  "publishedAt": "2026-11-04",
+  "updatedAt": "2026-11-04",
+  "checkedAt": "2026-11-04",
+  "readingMinutes": 8,
+  "sections": [
+    {
+      "heading": "Vite 8.1で追加された二つの実験機能",
+      "paragraphs": [
+        "2026年6月23日に公開されたVite 8.1では、大きなWebアプリの開発を軽くするBundled Dev Modeと、公開後のJavaScriptを再利用しやすくするChunk Import Mapが実験機能として加わった。本稿はこの6月の発表を題材に、11月4日に確認した公式資料から仕組みと改善点を解説する。[1]",
+        "前者は、開発中にブラウザが読み込むファイルの多さに手を入れる。後者は、一部のコードを更新しただけで、変更していない配信ファイルまでキャッシュが使えなくなる問題を抑える。開発者が画面を開く場面と、利用者が更新後のサイトを訪れる場面で、それぞれ何が変わるかを見ていこう。"
+      ]
+    },
+    {
+      "heading": "Bundled Dev Modeと従来方式の違い",
+      "paragraphs": [
+        "従来のViteは、開発中のアプリケーションコードを必要に応じて変換し、ブラウザへ配っていた。importとexportで分けたJavaScriptのファイルを、ブラウザ自身が読み込むES modulesの仕組みを使っている。[2]",
+        "この方式の利点は、画面を表示する前にアプリ全体をまとめ直す必要がないことだ。まだ開いていない画面のコードまで処理せず、要求された部分から用意できる。ファイルを編集した際も、HMRという仕組みで更新部分を差し替え、ページ全体の再読み込みを避けられる。[2]",
+        "ところが、表示する画面そのものが大きくなると、別の待ち時間が目立つ。たとえば、管理画面が表、グラフ、入力フォーム、それぞれの部品や補助関数を読み込む場合だ。一つの画面に多数のファイルが必要なら、ブラウザはそれらを取得し、読み込みを管理しなければならない。ファイルの変換が速くても、リクエストを大量に扱う負担は残る。Viteチームは、この問題が大規模アプリやネットワークプロキシを通す環境で目立つと説明している。[1]"
+      ]
+    },
+    {
+      "heading": "Bundled Dev Modeの仕組み",
+      "paragraphs": [
+        "Bundled Dev Modeは、開発中にも複数のモジュールを束ねて配信する。ブラウザが細かいファイルをそれぞれ取りに行く負担を減らすための変更だ。[1]",
+        "ここで気になるのは、束ねるためにアプリ全体の処理を待つのか、という点だ。公開設計資料では、画面が実際に必要とする部分から処理する遅延バンドルを採用している。起動時はブラウザが要求したページの描画に必要なものを処理し、残りはimportされる際に用意する。[3]",
+        "たとえば、管理画面のトップページと、動的なimport()で読み込む詳細レポート画面が分かれていれば、最初からレポート側のすべてを処理する必要はない。必要な部分をまとめて渡し、後から必要になったコードを追加で処理する。ファイル数を減らすことと、未使用の画面まで先に処理しないことを両立させる設計だ。[3]",
+        "編集後の反映にも、HMRで適用できる変更には更新用のパッチファイルを使う。コードを束ねたからといって、小さな修正のたびにアプリ全体をダウンロードし直す構成にはしていない。[3]"
+      ]
+    },
+    {
+      "heading": "Viteチームの測定結果と設定例",
+      "paragraphs": [
+        "Viteチームは、1万個のReactコンポーネントを読み込むアプリで、従来方式と比べて起動が約15倍、ページ全体の再読み込みが約10倍速くなったと報告している。これはチームが示したテスト条件での結果であり、小さなアプリでも同じ倍率になるという意味ではない。本誌による追試結果ではない。[1]",
+        "公式発表に掲載された有効化の設定は次のとおり。ブラウザが受け取るコードのまとめ方を変更する設定で、アプリケーションの各import文を書き換えるためのものではない。",
+        "発表時点ではブラウザ側の基本機能を中心とした実験的な対応で、サードパーティープラグインなどには制限がある。11月4日に確認した公開設計資料も、基本的なブラウザ側の対応と、今後のSSR対応を分けて説明している。すべての構成に対応済みの機能としては扱わない。[1][3]"
+      ],
+      "code": {
+        "label": "公式発表に基づく設定例。本稿では実行していない。",
+        "language": "javascript",
+        "value": "import { defineConfig } from \"vite\";\n\nexport default defineConfig({\n  experimental: {\n    bundledDev: true,\n  },\n});"
+      }
+    },
+    {
+      "heading": "従来のキャッシュの問題",
+      "paragraphs": [
+        "Chunk Import Mapは、本番配信するJavaScriptのキャッシュを扱う。ビルド後のJavaScriptは、配信用にまとめたチャンクという単位に分かれる。ファイル名には、中身から計算したハッシュが付くことが多い。[4]",
+        "たとえば、グラフを描くコードがchart-a1b2.jsという名前になり、別のチャンクがそのファイルをimportしているとする。グラフの処理を修正して中身が変われば、ファイル名もchart-c3d4.jsへ変わる。以下の名前とコードは仕組みを示す説明用の例だ。",
+        "読み込む側も、importに書く参照先を新しい名前へ変える必要がある。呼び出し元の処理は同じでも、この文字列が変わればファイルの内容が変わり、ハッシュも変わる。さらに、そのファイルを読み込む上位のファイルへも変更が波及し得る。",
+        "つまり、グラフの処理だけを直したのに、ほかのJavaScriptも新しいURLになり、以前のキャッシュを再利用できなくなる。Viteの公式ガイドが説明する、連鎖的なキャッシュ無効化はこの問題を指している。[4]"
+      ],
+      "code": {
+        "label": "配信コードの概念例。実際のVite生成物ではない。",
+        "language": "javascript",
+        "value": "// 更新前の呼び出し元\nimport { drawChart } from \"./chart-a1b2.js\";\ndrawChart();\n\n// 更新後の呼び出し元（上とは別のファイル内容）\nimport { drawChart } from \"./chart-c3d4.js\";\ndrawChart();"
+      }
+    },
+    {
+      "heading": "Chunk Import Mapの仕組み",
+      "paragraphs": [
+        "Chunk Import Mapは、チャンクの識別子と実際のURLを対応付ける。その土台になるimport mapは、JavaScriptの読み込み名をURLへ対応付けるブラウザの仕組みだ。[5]",
+        "下の概念例では、JavaScript側がapp-chartという名前を参照し、ブラウザがHTML内の対応表を使って実際のファイルのURLを解決する。グラフのファイルを更新した際も、JavaScript側のimportはapp-chartのままにできる。対応表の参照先を変えることで、呼び出し元にハッシュ付きファイル名を直接書かずに済む。",
+        "Rolldownも、識別子を内容のハッシュから独立させることで、キャッシュ無効化の連鎖を減らすと説明している。Viteはその仕組みを使い、Vite固有の処理にも対応させている。実際の対応表や識別子はビルドツールが生成するもので、開発者が全チャンクの名前を手作業で管理するものではない。[1][6]"
+      ],
+      "code": {
+        "label": "import mapと利用側の概念例。名前とパスは説明用。",
+        "language": "html",
+        "value": "<script type=\"importmap\">\n{\n  \"imports\": {\n    \"app-chart\": \"/assets/chart-a1b2.js\"\n  }\n}\n</script>\n<script type=\"module\">\n  import { drawChart } from \"app-chart\";\n  drawChart();\n</script>"
+      }
+    },
+    {
+      "heading": "更新後のキャッシュへの効果",
+      "paragraphs": [
+        "グラフの新しいファイル名がchart-c3d4.jsになった場合、概念例の対応表を下のように更新できる。呼び出し元のimport文は変わらないため、参照先のハッシュが変わったという理由だけで、呼び出し元のコードまで書き換える必要がなくなる。",
+        "この変更で恩恵を受けるのは、以前のファイルをキャッシュしている利用者だ。変更されたグラフのコードは取得しつつ、参照先の名前が変わったためだけに更新されていた周辺のコードは、再利用できる余地が増える。初めて訪れる利用者の転送量を一律に減らす機能とは、効果が生じる場面が異なる。",
+        "公式ガイドでは、CSSや画像などのアセットに同じ最適化がそのまま適用されるわけではないと説明している。画像を変更すれば、それを直接参照するチャンクは更新され得る。その場合も、上位のJavaScriptへファイル名の変更が次々に波及することを抑える仕組みになる。[4]",
+        "11月4日に確認したbuild.chunkImportMapの設定は実験扱いで、既定はfalse。利用にはimport.meta.resolveへの対応も必要とされる。生成するファイルの分割や別のコード変更まで固定する仕組みではなく、ハッシュを含む参照URLによる更新の波及を抑える機能として理解できる。[7]"
+      ],
+      "code": {
+        "label": "グラフ更新後の対応表の概念例。新しいHTMLで読み込ませる想定。",
+        "language": "json",
+        "value": "{\n  \"imports\": {\n    \"app-chart\": \"/assets/chart-c3d4.js\"\n  }\n}"
+      }
+    }
+  ],
+  "references": [
+    {"label": "[1] Vite 8.1公式発表（2026年6月23日）：二つの実験機能、性能報告、設定例", "url": "https://vite.dev/blog/announcing-vite8-1"},
+    {"label": "[2] Vite — Why Vite：ES modulesを使う開発サーバーとHMRの背景", "url": "https://vite.dev/guide/why"},
+    {"label": "[3] Vite公開設計資料：Bundled dev mode design doc and Road Map #22746", "url": "https://github.com/vitejs/vite/discussions/22746"},
+    {"label": "[4] Vite — Chunk Import Map Optimization：キャッシュ無効化の連鎖とCSS・アセットの範囲", "url": "https://vite.dev/guide/features#chunk-import-map-optimization"},
+    {"label": "[5] HTML Standard — Import maps：読み込み名とURLの対応", "url": "https://html.spec.whatwg.org/multipage/webappapis.html#import-maps"},
+    {"label": "[6] Rolldown — experimental.chunkImportMap：識別子と生成する対応表", "url": "https://rolldown.rs/reference/InputOptions.experimental#chunkimportmap"},
+    {"label": "[7] Vite — build.chunkImportMap：設定の既定値とブラウザ機能の要件", "url": "https://vite.dev/config/build-options#build-chunkimportmap"}
+  ],
+  "limitations": [
+    "2026年6月23日のVite 8.1発表を題材に、2026年11月4日に公式資料を確認した解説。11月の新発表や、最新versionの網羅的な紹介ではない。",
+    "起動約15倍・再読み込み約10倍は、Viteチームが1万個のReactコンポーネントを使った条件で示した報告値。本誌による性能の追試、実アプリでの比較測定は行っていない。",
+    "Bundled Dev Modeの設定例は未実行。キャッシュのコードとファイル名は仕組みを示す概念例であり、実際のVite生成物、ブラウザの通信記録、キャッシュの観測結果ではない。",
+    "実験機能の対応範囲、プラグイン互換性、設定、ブラウザ要件は変更され得る。SSRや全プラグインへの対応、CSS・画像まで同じキャッシュ最適化が働くことを保証する記事ではない。"
+  ]
+}

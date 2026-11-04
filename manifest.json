@@ -226,6 +226,11 @@
       "slug": "paper-lost-in-the-middle-context-evaluation",
       "path": "articles/paper-lost-in-the-middle-context-evaluation.json",
       "sha256": "24ca77532c002afbebd4f9f4a211fc6ce08fe78712c7eda84bd8b64fd52ea9a6"
+    },
+    {
+      "slug": "news-vite-8-1-bundled-dev-chunk-import-map",
+      "path": "articles/news-vite-8-1-bundled-dev-chunk-import-map.json",
+      "sha256": "ed2faf304b29b94271ac9ac021080837162403228bc06b2d1c1426bdfb757a2f"
     }
   ],
   "assets": [

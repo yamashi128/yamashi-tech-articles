@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 export const ARTICLE_REPOSITORY = "yamashi128/yamashi-tech-articles";
-export const ARTICLE_CATEGORIES = ["News", "Deep Dive", "Research"];
+export const ARTICLE_CATEGORIES = ["News", "Deep Dive", "Research", "Learn"];
 export const ARTICLE_TAGS = ["AI / ML", "AI Agents", "DevTools", "Software Engineering", "Industry", "Career", "Security", "Python", "TypeScript"];
 export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const COMMIT = /^[a-f0-9]{40}$/;

@@ -231,6 +231,11 @@
       "slug": "news-vite-8-1-bundled-dev-chunk-import-map",
       "path": "articles/news-vite-8-1-bundled-dev-chunk-import-map.json",
       "sha256": "ed2faf304b29b94271ac9ac021080837162403228bc06b2d1c1426bdfb757a2f"
+    },
+    {
+      "slug": "news-github-octoverse-2026-agent-signals-methodology",
+      "path": "articles/news-github-octoverse-2026-agent-signals-methodology.json",
+      "sha256": "91da905d4a809e2a92788147907844b893f6f4be9b864f46fcc0340851aea902"
     }
   ],
   "assets": [

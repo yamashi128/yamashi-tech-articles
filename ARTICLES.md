@@ -2,6 +2,7 @@
 
 原稿データから生成した閲覧用Markdownです。修正は対応するJSON原稿へ行います。
 
+- 2026-11-05 / Learn — [SQLのNULLは空文字でも0でもない：三値論理・NOT IN・COUNTをSQLiteで確かめる](read/learn-sql-null-three-valued-logic.md)
 - 2026-11-04 / News — [Vite 8.1、開発中の大量リクエストと、公開後のキャッシュ破棄を減らす](read/news-vite-8-1-bundled-dev-chunk-import-map.md)
 - 2026-11-01 / News — [GitHub Octoverse 2026：AI利用とエージェント起点PRを同じ指標にしない](read/news-github-octoverse-2026-agent-signals-methodology.md)
 - 2026-10-24 / News — [OpenAIのDecisions APIがGAに：分類・分岐をResponses APIと分けて設計する](read/news-openai-decisions-api-general-availability.md)

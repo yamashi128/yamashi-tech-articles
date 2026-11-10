@@ -241,6 +241,11 @@
       "slug": "learn-sql-null-three-valued-logic",
       "path": "articles/learn-sql-null-three-valued-logic.json",
       "sha256": "e72b20322663ed7c2c5075d1f532eddd13d26d02d02150658d1fa0319f3ffe54"
+    },
+    {
+      "slug": "news-github-slack-copilot-ga-work-boundaries",
+      "path": "articles/news-github-slack-copilot-ga-work-boundaries.json",
+      "sha256": "dc007539b62d56bf52192cff16d937b0f01cf385ac4c1e912455020292d478b9"
     }
   ],
   "assets": [

@@ -246,6 +246,11 @@
       "slug": "news-github-slack-copilot-ga-work-boundaries",
       "path": "articles/news-github-slack-copilot-ga-work-boundaries.json",
       "sha256": "dc007539b62d56bf52192cff16d937b0f01cf385ac4c1e912455020292d478b9"
+    },
+    {
+      "slug": "learn-gitignore-negation-directory-boundaries",
+      "path": "articles/learn-gitignore-negation-directory-boundaries.json",
+      "sha256": "91110ba92b94bbe873934b5e5e2395bff809454eb9e1ab80d1ebc4eb303a9d69"
     }
   ],
   "assets": [

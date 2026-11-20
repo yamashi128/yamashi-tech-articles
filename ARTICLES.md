@@ -2,6 +2,7 @@
 
 原稿データから生成した閲覧用Markdownです。修正は対応するJSON原稿へ行います。
 
+- 2026-11-13 / News — [個人アカウントでもIssueを設計する：GitHubのIssue typesとfieldsで、labelと予定を混ぜない](read/news-github-personal-account-issue-types-fields.md)
 - 2026-11-10 / Learn — [`.gitignore` の `!` が効かないのはなぜ？ディレクトリ除外と `git check-ignore` で確かめる](read/learn-gitignore-negation-directory-boundaries.md)
 - 2026-11-09 / News — [GitHubをSlackで使うと何が変わる？会話からIssue・PRへ進めるときの境界](read/news-github-slack-copilot-ga-work-boundaries.md)
 - 2026-11-05 / Learn — [SQLのNULLは空文字でも0でもない：三値論理・NOT IN・COUNTをSQLiteで確かめる](read/learn-sql-null-three-valued-logic.md)

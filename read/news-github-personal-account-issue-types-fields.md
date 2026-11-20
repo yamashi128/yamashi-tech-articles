@@ -1,0 +1,67 @@
+# 個人アカウントでもIssueを設計する：GitHubのIssue typesとfieldsで、labelと予定を混ぜない
+
+YAMASHI TECH AI Editorial Desk | News | DevTools / Software Engineering / Industry
+
+[掲載ページ](https://yamashi-tech.com/articles/news-github-personal-account-issue-types-fields) · [原稿データ](../articles/news-github-personal-account-issue-types-fields.json)
+
+公開: 2026-11-13 / 更新: 2026-11-15 / 確認: 2026-11-15
+
+GitHubは2026年11月11日、個人アカウント所有repositoryでもIssue typesとIssue fieldsを一般提供した。仕事の種類、優先度、期日、分類、リリース目標を一つのlabelへ詰め込まないための役割分担を整理する。
+
+## 結論：Issueの『種類』と『予定の属性』を分けて持てるようになった
+
+GitHubは2026年11月11日、個人アカウントが所有するrepositoryでもIssue typesとIssue fieldsを一般提供した。これにより、IssueをBug、Task、Featureのような仕事の種類で区別しながら、Priority、Effort、Start date、Target dateのような計画上の値を別々に記録できる。
+
+小規模なrepositoryでは、labelに bug、high-priority、v1.4、backend、needs-triage のように違う意味を詰め込みがちだ。検索には使えても、何が種類で、何が期限で、何が横断分類かが曖昧になる。今回の機能はlabelを置き換えるためではなく、その意味を分けて扱う選択肢になる。
+
+## type、field、label、milestone、Projectは同じものではない
+
+GitHubの告知では、Issue typeは個人アカウントのPlanning設定でカスタマイズでき、標準ではBug、Task、Featureがある。typeは『このIssueは何の種類の仕事か』に一つの答えを持たせるのに向く。たとえば不具合報告をFeatureと同じ一覧で追うとしても、種類をlabelの組み合わせから推測する必要がなくなる。
+
+Issue fieldはPriorityやEffortのように、並べ替え、絞り込み、Project上の表示へ使いたい値を持たせる場所だ。fieldはtypeごとにpinできるため、例えばSeverityをBugだけに出すようにできる。labelはarea:frontend、good first issue、documentationのように複数付く横断的な分類に残せる。milestoneは特定のreleaseや目標へまとめる単位、Projectはその情報からviewやbulk updateを作る場、と分けると一つの値を二重に更新しにくい。後半の整理は編集部の設計提案である。
+
+役割を重ねないための最小例。repositoryの規模や運用に応じて減らしてよい。
+
+| 保持するもの | 答える問い | 例 |
+| --- | --- | --- |
+| Issue type | これは何の種類の仕事か | Bug / Task / Feature |
+| Issue field | いつ・どれくらい・どの程度重要か | Priority / Effort / Target date |
+| Label | 複数の横断的な性質は何か | area:api / documentation |
+| Milestone | どの目標やreleaseへ入るか | v1.4 |
+| Project | どのviewで計画・更新するか | 今週の優先度別board |
+
+## 最初は三つのtypeと少数のfieldから始める
+
+告知によれば、個人アカウントではtypeとfieldを各25個まで作れる。ただし、上限まで先に分類を作る必要はない。最初は標準のBug、Task、Featureと、Priority、Effort、Target dateのように、既に判断で繰り返している値だけを残す方が、入力の迷いを増やさない。
+
+たとえば『BugかFeatureか』と『今週着手するか』は別の判断だ。前者をtype、後者をPriorityやTarget dateのfieldに置くと、障害だけを見るviewと、今週着手するものを見るviewを同じIssueデータから作れる。これは特定のGitHub画面を実演した結果ではなく、告知されたtype・field・Projectでの利用範囲から導く運用例である。
+
+## 既存Issueへ移すときは、labelを消す前に意味を対応付ける
+
+GitHubは、新規Issueだけでなく既存Issueにもtypeとfieldを設定できるとしている。移行するなら、現在のlabelを一覧にして、仕事の種類、計画の値、横断分類、release目標のどれを表しているかを一度決める。意味が混ざったlabelをそのままfield名へ写すと、入力場所だけが増えてしまう。
+
+例えば critical と bug を一つのlabelとして使っていたなら、bug はIssue type、critical はPriority fieldまたは運用上の優先度規約へ分ける候補になる。一方、customer-report のように発生源を示す値は複数付くlabelのままが扱いやすいことがある。どの分け方もrepositoryの問い合わせ量、release運用、参加者数に依存する。
+
+## Projectと自動化は、値の意味が固まってからつなぐ
+
+告知では、typeとfieldをProjectsのcustom viewとbulk updateに使え、REST API、GraphQL API、webhookからも管理できるとしている。ここで大切なのは、APIが使えることと自動更新してよいことは別だという点だ。Priorityの意味や更新者が決まらないままautomationを加えると、便利な一覧ではなく、誰も信頼できない値が増える。
+
+まず手作業で数件を分類し、viewで本当に見たい問いを確認する。次に、どの更新を人が決め、どれをIssue作成時の既定値にしてよいかを決める。その後にAPIやwebhookを検討すれば、通知・権限・更新競合をIssue設計とは別に評価できる。これは編集部のRecommendationであり、GitHubが特定の自動化を要求しているという意味ではない。
+
+## 今回の変更で確認すること
+
+個人アカウント所有repositoryでIssueを継続的に使うなら、まずPlanning設定にtypeとfieldがあるかを確認する。次に、同じ意味のlabelとfieldを二重に作らず、最初の一つのrepositoryで数個のIssueだけを分類してから広げる。
+
+この記事では、GitHubの個人アカウントやProjectを操作していないため、UIの表示順、API requestの形式、webhook payload、権限やrolloutの実際の挙動は確認していない。運用へ組み込む前に、リンク先のGitHub Docsと対象accountの設定を照合する。
+
+## 制約と未検証範囲
+
+- この記事はGitHubの2026年11月11日の告知とリンク先Docsを基にした設計解説であり、個人アカウントの設定、Project、API、webhookを実際には操作していない。
+- 利用可否と画面・APIの詳細はaccount、repository、rollout、将来のGitHub仕様で変わり得る。組織アカウント、Enterpriseのポリシー、外部連携の権限設計は個別に確認する。
+- ここで示す役割分担は編集部の提案であり、Bug・Task・Feature以外のtype名やfield構成を全てのrepositoryへ勧めるものではない。
+
+## 確認したもの
+
+- [GitHub Changelog — Issue types and fields are available for personal accounts (2026-11-11)](https://github.blog/changelog/2026-11-11-issue-types-and-fields-are-available-for-personal-accounts/)
+- [GitHub Docs — Managing issue types](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/managing-issue-types)
+- [GitHub Docs — Managing issue fields](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/managing-issue-fields)

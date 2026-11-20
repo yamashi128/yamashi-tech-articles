@@ -251,6 +251,11 @@
       "slug": "learn-gitignore-negation-directory-boundaries",
       "path": "articles/learn-gitignore-negation-directory-boundaries.json",
       "sha256": "91110ba92b94bbe873934b5e5e2395bff809454eb9e1ab80d1ebc4eb303a9d69"
+    },
+    {
+      "slug": "news-github-personal-account-issue-types-fields",
+      "path": "articles/news-github-personal-account-issue-types-fields.json",
+      "sha256": "abe722b87aa4717d892a784015e4f661d2e8564a472e688be4bcf818b48eaec0"
     }
   ],
   "assets": [
